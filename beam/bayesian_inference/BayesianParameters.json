@@ -1,14 +1,5 @@
 {
-    "forward_model": {
-        "type": "kratos",
-        "kratos": {
-            "project_parameters_file": "PrimalParametersBayes.json",
-            "self_check_on_init": true
-        },
-        "toy": {
-            "metadata_file": "../damaged_system/measurement_metadata.json"
-        }
-    },
+    "project_parameters_file": "PrimalParametersBayes.json",
     "parameters": [
         {
             "name": "alpha_1",
@@ -17,7 +8,10 @@
             "target_sub_model_part": "Structure.Beam_Auto1",
             "prior": {
                 "type": "uniform",
-                "parameters": [0.2, 2.0]
+                "parameters": [
+                    0.2,
+                    2.0
+                ]
             }
         }
     ],
@@ -30,26 +24,12 @@
         }
     },
     "sampler_settings": {
-        "sampler_type": "metropolis",
         "random_seed": 20260802,
-        "metropolis": {
-            "n_steps": 2000,
-            "n_burn": 200,
-            "proposal_std": [0.025],
-            "initial_theta": [1.0],
-            "table_file": "output/calculation_table.csv",
-            "table_preview_rows": 12
-        },
         "smc_acs": {
             "n_particles": 1000,
             "p": 1,
             "burn": 2,
             "target_cov": 1.5
         }
-    },
-    "output": {
-        "output_path": "output",
-        "write_vtk": true,
-        "posterior_bins": 40
     }
 }
