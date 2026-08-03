@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 data = np.load("output/smc_levels.npz")
 q = data["q"]
 alpha = data[f"level_{len(q) - 1:02d}"][:, 0]
-E_ref = float(data["E_ref"])
+E_ref = float(np.atleast_1d(data["E_ref"])[0])
 mean, std = alpha.mean(), alpha.std(ddof=1)
 
 fig, ax = plt.subplots(figsize=(7, 4.2))

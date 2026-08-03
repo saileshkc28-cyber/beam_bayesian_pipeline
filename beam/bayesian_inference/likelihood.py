@@ -1,91 +1,69 @@
-"""Likelihood and prior, kept strictly separate.
-
-- Likelihood.log_likelihood(theta) is LIKELIHOOD ONLY and returns a plain Python
-  float (numpy >= 2 rejects length-1 arrays in scalar assignment inside SMC_aCS).
-  This is the function handed to SMC_aCS: the ERA sampler holds the prior itself
-  (pCN proposal preserves it), so adding log_prior here would double-count it.
-- Prior.log_pdf(theta) is what plain Metropolis adds on top.
-
-Every forward evaluation is cached (theta -> sensors + displacement field), which
-is what lets the per-level SMC VTK statistics be assembled after sampling without
-touching SMC_aCS.
-"""
 import csv
 import numpy as np
+import KratosMultiphysics as Kratos
 
 from era.Distributions.ERADist import ERADist
 from era.Distributions.ERANataf import ERANataf
 
-_TINY = np.finfo(float).tiny
-
-
-def _key(theta):
-    return tuple(np.round(np.atleast_1d(theta).astype(float), 12))
-
 
 class Likelihood:
-
-    def __init__(self, forward_model, measured_data_file, sigma):
-        self.fm = forward_model
-        self.sigma = float(sigma)
-        self.u_hat = self._read_measured(measured_data_file)
-        self.cache = {}     # key -> (sensors, displacement_field or None)
+    """Likelihood ONLY. SMC_aCS holds the prior in its ERADist object, so adding
+    log_prior here would double-count it."""
 
     @staticmethod
-    def _read_measured(path):
-        values = []
-        with open(path) as f:
-            for row in csv.DictReader(f):
-                values.append(float(row["value"]))
-        return np.array(values)
+    def GetDefaultParameters():
+        return Kratos.Parameters("""{
+            "measured_data_file" : "../damaged_system/measured_data.csv",
+            "noise_model"        : {
+                "type"  : "gaussian_iid",
+                "sigma" : 0.0
+            }
+        }""")
 
-    # ------------------------------------------------------------ forward + cache
-    def forward(self, theta):
-        k = _key(theta)
-        if k not in self.cache:
-            u = self.fm.evaluate(theta)
-            field = self.fm.last_displacement_field
-            self.cache[k] = (u, None if field is None else field.copy())
-        return self.cache[k][0]
+    def __init__(self, forward_model, settings):
+        settings.ValidateAndAssignDefaults(self.GetDefaultParameters())
+        settings["noise_model"].ValidateAndAssignDefaults(
+            self.GetDefaultParameters()["noise_model"])
 
-    def field(self, theta):
-        self.forward(theta)
-        return self.cache[_key(theta)][1]
+        noise_type = settings["noise_model"]["type"].GetString()
+        if noise_type != "gaussian_iid":
+            raise RuntimeError(f"unsupported noise model '{noise_type}'")
 
-    # ------------------------------------------------------------ scores
-    def residual(self, theta):
-        return self.u_hat - self.forward(theta)
+        self.model = forward_model
+        self.sigma = settings["noise_model"]["sigma"].GetDouble()
+        with open(settings["measured_data_file"].GetString()) as f:
+            self.u_hat = np.array([float(row["value"]) for row in csv.DictReader(f)])
+        self.cache = {}
 
-    def log_likelihood(self, theta):
-        """Likelihood ONLY. Scalar float. This is the SMC_aCS input."""
-        r = self.residual(theta)
+    def Forward(self, theta):
+        key = tuple(np.round(np.atleast_1d(theta).astype(float), 12))
+        if key not in self.cache:
+            u = self.model.Evaluate(theta)
+            self.cache[key] = (u, self.model.field.copy())
+        return self.cache[key]
+
+    def Cached(self, theta):
+        return self.cache.get(tuple(np.round(np.atleast_1d(theta).astype(float), 12)))
+
+    def __call__(self, theta):
+        """Scalar float: numpy >= 2 rejects length-1 arrays inside SMC_aCS."""
+        r = self.u_hat - self.Forward(theta)[0]
         return float(-0.5 * float(r @ r) / self.sigma**2)
 
 
 class Prior:
-    """Built from the JSON 'parameters' block. Provides both the ERA object for
-    SMC_aCS and marginal log-pdfs for plain Metropolis."""
+    """Built from the 'parameters' block: one marginal per inferred quantity."""
 
     def __init__(self, parameter_entries):
-        self.names = [e["name"] for e in parameter_entries]
-        self.marginals = [
-            ERADist(e["prior"]["type"], "PAR", list(e["prior"]["parameters"]))
-            for e in parameter_entries
-        ]
+        self.marginals = []
+        for entry in parameter_entries:
+            prior = entry["prior"]
+            self.marginals.append(ERADist(prior["type"].GetString(), "PAR",
+                                          list(prior["parameters"].GetVector())))
         self.dim = len(self.marginals)
 
-    def era_object(self):
-        """What SMC_aCS receives: a single ERADist for 1D, an ERANataf otherwise."""
+    def EraObject(self):
+        """SMC_aCS takes a single ERADist in 1D, an ERANataf otherwise."""
         if self.dim == 1:
             return self.marginals[0]
         return ERANataf(self.marginals, np.identity(self.dim))
-
-    def log_pdf(self, theta):
-        theta = np.atleast_1d(np.asarray(theta, dtype=float))
-        lp = 0.0
-        for a, dist in zip(theta, self.marginals):
-            lp += float(np.log(float(np.atleast_1d(dist.pdf(a))[0]) + _TINY))
-        return lp
-
-    def sample(self, rng):
-        return np.array([float(np.atleast_1d(d.random(1))[0]) for d in self.marginals])
