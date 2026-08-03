@@ -1,12 +1,9 @@
-import json
 import numpy as np
 import KratosMultiphysics as Kratos
 from KratosMultiphysics.StructuralMechanicsApplication.structural_mechanics_analysis import StructuralMechanicsAnalysis
 
 from sensors import read_sensors, interpolate
 
-ALPHA_TRUE = 0.7
-E_REF = 206.9e9
 NOISE_FRACTION = 0.02
 SEED = 20260802
 
@@ -35,6 +32,11 @@ if __name__ == "__main__":
     analysis = CustomStructuralMechanicsAnalysis(model, parameters)
     analysis.Run()
 
+    # the planted truth is whatever StructuralMaterials.json assigned, read back per zone
+    E_true = {}
+    for element in model["Structure"].Elements:
+        E_true[element.Properties.Id] = element.Properties[Kratos.YOUNG_MODULUS]
+
     sensors = read_sensors("../sensor_placement/sensor_data.json")
     u_true = interpolate(model["Structure"], sensors)
 
@@ -47,10 +49,8 @@ if __name__ == "__main__":
             f.write(f"{i},{s['type']},{s['name']},{s['location'][0]},{s['location'][1]},"
                     f"{s['location'][2]},{v:.16e}\n")
 
-    json.dump({"alpha_true": ALPHA_TRUE, "E_ref": E_REF, "sigma": sigma, "seed": SEED,
-               "u_true": u_true.tolist(), "u_hat": u_hat.tolist()},
-              open("measurement_metadata.json", "w"), indent=2)
-
-    print(f"\nsigma = {sigma:.6e}")
+    for pid, E in sorted(E_true.items()):
+        print(f"\nproperty {pid}: E_true = {E:.6e} Pa")
+    print(f"sigma = {sigma:.6e}")
     for s, ut, uh in zip(sensors, u_true, u_hat):
         print(f"{s['name']}: u_true = {ut: .6e}   u_hat = {uh: .6e}")

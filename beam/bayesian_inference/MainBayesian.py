@@ -23,10 +23,17 @@ class KratosForwardModel:
         self.zones = []
         for entry in parameter_entries:
             part = self.model[entry["target_sub_model_part"]]
-            props = {e.Properties.Id: e.Properties for e in part.Elements}
-            self.zones.append((Kratos.KratosGlobals.GetVariable(entry["control_variable"]),
-                               float(entry["reference_value"]), list(props.values()),
+            props = list({e.Properties.Id: e.Properties for e in part.Elements}.values())
+            variable = Kratos.KratosGlobals.GetVariable(entry["control_variable"])
+            # reference = the value StructuralMaterials.json assigned to this zone,
+            # read once before any sample overwrites it. JSON may override it.
+            ref = float(entry.get("reference_value") or props[0][variable])
+            print(f"  {entry['name']}: {entry['target_sub_model_part']} "
+                  f"({len(part.Elements)} elements), reference = {ref:.6e}")
+            self.zones.append((variable, ref, props,
                                np.array([elem_at[e.Id] for e in part.Elements])))
+        self.refs = np.array([z[1] for z in self.zones])
+        self.prop_ids = [[p.Id for p in z[2]] for z in self.zones]
 
         self.located = sensor_tools.locate(self.root, sensor_tools.read_sensors(sensor_file))
         self.nodes = np.array([[n.X0, n.Y0, n.Z0] for n in self.root.Nodes])
@@ -81,7 +88,7 @@ def smc(model, u_hat, sigma, era_prior, settings, cache):
 
 if __name__ == "__main__":
 
-    os.makedirs("output", exist_ok=True)
+    os.makedirs("output/vtk_output", exist_ok=True)
     config = json.load(open("BayesianParameters.json"))
 
     with open(config["project_parameters_file"], "r") as file_input:
@@ -109,40 +116,48 @@ if __name__ == "__main__":
             if float(th[0]) in cache:
                 disp.update(cache[float(th[0])][1])
                 E.update(model.youngs_modulus(th))
-        write_vtk(f"output/smc_level_{lev:02d}.vtk", model, disp, E)
+        write_vtk(f"output/vtk_output/smc_level_{lev:02d}.vtk", model, disp, E)
         if lev == len(levels) - 1:
-            write_vtk("output/posterior.vtk", model, disp, E)
+            write_vtk("output/vtk_output/posterior.vtk", model, disp, E)
     chain = levels[-1]
+    E_ref = model.refs[0]
+    E_chain = chain * E_ref              # same samples, physical units
 
-    np.savez("output/smc_levels.npz", q=q, logcE=logcE,
+    np.savez("output/smc_levels.npz", q=q, logcE=logcE, E_ref=E_ref,
+             E_posterior=E_chain, prop_ids=np.array(model.prop_ids[0]),
              **{f"level_{i:02d}": lv for i, lv in enumerate(levels)})
 
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots(figsize=(7, 4.2))
     a = chain[:, 0]
     mean, std = a.mean(), a.std(ddof=1)
-    ax.hist(a, bins=40, density=True, color="#4878a8", edgecolor="white",
-            label=f"posterior samples (n={len(a)})")
-    ax.axvline(mean, color="#1a3a5a", lw=1.8,
-               label=rf"mean $\alpha$ = {mean:.4f} $\pm$ {std:.4f}")
-    for s in (mean - std, mean + std):
-        ax.axvline(s, color="#1a3a5a", lw=1.0, ls=":")
+    Em, Es = E_chain.mean(), E_chain.std(ddof=1)
+    json.dump({"alpha_mean": float(mean), "alpha_std": float(std),
+               "E_mean_Pa": float(Em), "E_std_Pa": float(Es),
+               "E_ref_Pa": E_ref, "logcE": logcE, "q": q.tolist(),
+               "n_particles": int(len(a))},
+              open("output/summary.json", "w"), indent=2)
 
-    truth_file = "../damaged_system/measurement_metadata.json"
-    if os.path.exists(truth_file):
-        truth = json.load(open(truth_file)).get("alpha_true")
-        if truth is not None:
-            ax.axvline(truth, color="crimson", ls="--", lw=1.5,
-                       label=rf"$\alpha_{{true}}$ = {truth}")
+    try:
+        import pandas as pd
+        with pd.ExcelWriter("output/posterior.xlsx", engine="openpyxl") as writer:
+            for lev, samples in enumerate(levels):
+                cols = {}
+                for z in range(samples.shape[1]):
+                    cols[f"alpha_{z + 1}"] = samples[:, z]
+                    cols[f"E_{z + 1}_Pa"] = samples[:, z] * model.refs[z]
+                pd.DataFrame(cols).to_excel(
+                    writer, sheet_name=f"level_{lev:02d}_q{q[lev]:.3f}"[:31], index=False)
+            pd.DataFrame([
+                {"zone": z + 1, "alpha_mean": chain[:, z].mean(),
+                 "alpha_std": chain[:, z].std(ddof=1),
+                 "alpha_p2.5": np.percentile(chain[:, z], 2.5),
+                 "alpha_p97.5": np.percentile(chain[:, z], 97.5),
+                 "E_mean_Pa": chain[:, z].mean() * model.refs[z],
+                 "E_std_Pa": chain[:, z].std(ddof=1) * model.refs[z]}
+                for z in range(chain.shape[1])]).to_excel(
+                    writer, sheet_name="posterior_stats", index=False)
+    except ImportError:
+        print("(pandas/openpyxl not installed - skipping posterior.xlsx)")
 
-    ax.set_xlabel(r"$\alpha = E/E_{ref}$")
-    ax.set_ylabel("posterior density")
-    ax.legend(frameon=False, fontsize=9)
-    fig.tight_layout()
-    fig.savefig("output/posterior_alpha.png", dpi=150)
-
-    print(f"\nalpha = {chain.mean():.4f} +/- {chain.std(ddof=1):.4f}   "
-          f"logcE = {logcE:.3f}   levels = {len(q)}")
+    print(f"\nalpha = {mean:.4f} +/- {std:.4f}")
+    print(f"E     = {Em:.4e} +/- {Es:.3e} Pa   ({Em/1e9:.2f} +/- {Es/1e9:.2f} GPa)")
+    print(f"logcE = {logcE:.3f}   levels = {len(q)}")
