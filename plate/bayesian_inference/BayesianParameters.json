@@ -1,0 +1,98 @@
+{
+    "problem_data": {
+        "problem_name": "bayesian_inference_plate",
+        "echo_level": 1
+    },
+    "forward_model": {
+        "primal_parameters_file": "PrimalParametersBayes.json",
+        "sensor_data_file": "../sensor_placement/sensor_data.json"
+    },
+    "parameters": [
+        {
+            "name": "alpha_1",
+            "control_variable": "YOUNG_MODULUS",
+            "target_sub_model_part": "Structure.Region_1_alpha_100",
+            "reference_value": 69000000000.0,
+            "prior": {
+                "type": "uniform",
+                "parameters": [
+                    0.2,
+                    2.0
+                ]
+            }
+        },
+        {
+            "name": "alpha_2",
+            "control_variable": "YOUNG_MODULUS",
+            "target_sub_model_part": "Structure.Region_2_alpha_50",
+            "reference_value": 69000000000.0,
+            "prior": {
+                "type": "uniform",
+                "parameters": [
+                    0.2,
+                    2.0
+                ]
+            }
+        },
+        {
+            "name": "alpha_3",
+            "control_variable": "YOUNG_MODULUS",
+            "target_sub_model_part": "Structure.Region_3_alpha_080",
+            "reference_value": 69000000000.0,
+            "prior": {
+                "type": "uniform",
+                "parameters": [
+                    0.2,
+                    2.0
+                ]
+            }
+        },
+        {
+            "name": "alpha_4",
+            "control_variable": "YOUNG_MODULUS",
+            "target_sub_model_part": "Structure.Region_4_alpha_100",
+            "reference_value": 69000000000.0,
+            "prior": {
+                "type": "uniform",
+                "parameters": [
+                    0.2,
+                    2.0
+                ]
+            }
+        }
+    ],
+    "likelihood": {
+        "measured_data_file": "../damaged_system/measured_data.csv",
+        "noise_model": {
+            "type": "gaussian_iid",
+            "sigma": 5.451677e-08
+        }
+    },
+    "sampler_settings": {
+        "python_module": "smc_acs_sampler",
+        "Parameters": {
+            "n_particles": 1000,
+            "p": 1,
+            "burn": 2,
+            "target_cov": 1.5,
+            "random_seed": 20260811
+        }
+    },
+    "output_processes": [
+        {
+            "python_module": "posterior_output_process",
+            "Parameters": {
+                "output_path": "output",
+                "write_npz": true,
+                "write_excel": true
+            }
+        },
+        {
+            "python_module": "vtk_statistics_output_process",
+            "Parameters": {
+                "output_path": "output/vtk_output",
+                "write_every_level": true
+            }
+        }
+    ]
+}

@@ -1,0 +1,75 @@
+{
+    "properties": [
+        {
+            "model_part_name": "Structure",
+            "properties_id": 0,
+            "Material": {
+                "Variables": []
+            }
+        },
+        {
+            "model_part_name": "Structure.Region_1_alpha_100",
+            "properties_id": 1,
+            "Material": {
+                "constitutive_law": {
+                    "name": "LinearElasticPlaneStress2DLaw"
+                },
+                "Variables": {
+                    "THICKNESS": 0.1,
+                    "DENSITY": 2650.0,
+                    "YOUNG_MODULUS": 69000000000.0,
+                    "POISSON_RATIO": 0.22
+                },
+                "Tables": null
+            }
+        },
+        {
+            "model_part_name": "Structure.Region_2_alpha_50",
+            "properties_id": 2,
+            "Material": {
+                "constitutive_law": {
+                    "name": "LinearElasticPlaneStress2DLaw"
+                },
+                "Variables": {
+                    "THICKNESS": 0.1,
+                    "DENSITY": 2650.0,
+                    "YOUNG_MODULUS": 69000000000.0,
+                    "POISSON_RATIO": 0.22
+                },
+                "Tables": null
+            }
+        },
+        {
+            "model_part_name": "Structure.Region_3_alpha_080",
+            "properties_id": 3,
+            "Material": {
+                "constitutive_law": {
+                    "name": "LinearElasticPlaneStress2DLaw"
+                },
+                "Variables": {
+                    "THICKNESS": 0.1,
+                    "DENSITY": 2650.0,
+                    "YOUNG_MODULUS": 69000000000.0,
+                    "POISSON_RATIO": 0.22
+                },
+                "Tables": null
+            }
+        },
+        {
+            "model_part_name": "Structure.Region_4_alpha_100",
+            "properties_id": 4,
+            "Material": {
+                "constitutive_law": {
+                    "name": "LinearElasticPlaneStress2DLaw"
+                },
+                "Variables": {
+                    "THICKNESS": 0.1,
+                    "DENSITY": 2650.0,
+                    "YOUNG_MODULUS": 69000000000.0,
+                    "POISSON_RATIO": 0.22
+                },
+                "Tables": null
+            }
+        }
+    ]
+}
