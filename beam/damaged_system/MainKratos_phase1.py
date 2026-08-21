@@ -1,10 +1,12 @@
+import json
 import numpy as np
 import KratosMultiphysics as Kratos
 from KratosMultiphysics.StructuralMechanicsApplication.structural_mechanics_analysis import StructuralMechanicsAnalysis
 
 from sensors import read_sensors, interpolate
 
-NOISE_FRACTION = 0.02
+# fixed noise floor, independent of the sensor set: 2% of the undamaged tip deflection
+NOISE_SIGMA = 3.77e-08
 SEED = 20260802
 
 
@@ -40,7 +42,7 @@ if __name__ == "__main__":
     sensors = read_sensors("../sensor_placement/sensor_data.json")
     u_true = interpolate(model["Structure"], sensors)
 
-    sigma = NOISE_FRACTION * np.max(np.abs(u_true))
+    sigma = NOISE_SIGMA
     u_hat = u_true + np.random.default_rng(SEED).normal(0.0, sigma, u_true.shape)
 
     with open("measured_data.csv", "w") as f:
@@ -48,6 +50,10 @@ if __name__ == "__main__":
         for i, (s, v) in enumerate(zip(sensors, u_hat), 1):
             f.write(f"{i},{s['type']},{s['name']},{s['location'][0]},{s['location'][1]},"
                     f"{s['location'][2]},{v:.16e}\n")
+
+    with open("noise_model.json", "w") as f:
+        json.dump({"sigma": sigma, "seed": SEED,
+                   "u_true": u_true.tolist(), "u_hat": u_hat.tolist()}, f, indent=2)
 
     for pid, E in sorted(E_true.items()):
         print(f"\nproperty {pid}: E_true = {E:.6e} Pa")
