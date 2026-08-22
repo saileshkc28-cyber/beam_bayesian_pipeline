@@ -32,10 +32,10 @@
         "python_module": "metropolis_hastings_sampler",
         "Parameters": {
             "n_chains": 4,
-            "burn_in": 50,
-            "draws_per_chain": 100,
+            "burn_in": 500,
+            "draws_per_chain": 1000,
             "proposal_std": [
-                0.04
+                0.06
             ],
             "initial_states": [
                 [
@@ -54,14 +54,21 @@
             "random_seed": 20260822
         }
     },
-    "output_processes": [
+        "output_processes": [
         {
-        "python_module": "mcmc_posterior_output_process",
-        "Parameters": {
-            "output_path": "output_mcmc",
-            "write_npz": true,
-            "write_excel": true
+            "python_module": "mcmc_posterior_output_process",
+            "Parameters": {
+                "output_path": "output_mcmc",
+                "write_npz": true,
+                "write_excel": true
+            }
+        },
+        {
+            "python_module": "mcmc_vtk_statistics_output_process",
+            "Parameters": {
+                "output_path": "output_mcmc/vtk_output",
+                "output_file_name": "posterior_mcmc.vtk"
+            }
         }
-    }
     ]
 }

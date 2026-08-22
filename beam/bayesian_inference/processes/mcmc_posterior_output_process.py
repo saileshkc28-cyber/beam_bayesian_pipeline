@@ -4,6 +4,8 @@ import os
 import numpy as np
 import KratosMultiphysics as Kratos
 
+from arviz_stats.base import array_stats
+
 
 def Factory(
     forward_model,
@@ -122,6 +124,41 @@ class MCMCPosteriorOutputProcess:
             reference_values
         )
 
+        convergence_diagnostics = (
+            self._CalculateConvergenceDiagnostics(
+                chains
+            )
+        )
+
+        rank_normalized_rhat = np.array(
+            [
+                diagnostic[
+                    "rank_normalized_rhat"
+                ]
+                for diagnostic
+                in convergence_diagnostics
+            ],
+            dtype=float
+        )
+
+        bulk_ess = np.array(
+            [
+                diagnostic["bulk_ess"]
+                for diagnostic
+                in convergence_diagnostics
+            ],
+            dtype=float
+        )
+
+        tail_ess = np.array(
+            [
+                diagnostic["tail_ess"]
+                for diagnostic
+                in convergence_diagnostics
+            ],
+            dtype=float
+        )
+
         if self.write_npz:
             np.savez(
                 os.path.join(
@@ -135,6 +172,11 @@ class MCMCPosteriorOutputProcess:
                 warmup_acceptance_rates=(
                     warmup_acceptance_rates
                 ),
+                rank_normalized_rhat=(
+                    rank_normalized_rhat
+                ),
+                bulk_ess=bulk_ess,
+                tail_ess=tail_ess,
                 E_ref=reference_values,
                 E_chains=youngs_modulus_chains,
                 E_posterior=(
@@ -183,6 +225,9 @@ class MCMCPosteriorOutputProcess:
             "n_forward_solves": int(
                 self.model.n_solves
             ),
+            "convergence_diagnostics": (
+                convergence_diagnostics
+            ),
             "zones": statistics
         }
 
@@ -206,7 +251,8 @@ class MCMCPosteriorOutputProcess:
                 log_posterior,
                 acceptance_rates,
                 warmup_acceptance_rates,
-                statistics
+                statistics,
+                convergence_diagnostics
             )
 
         for zone in statistics:
@@ -225,6 +271,115 @@ class MCMCPosteriorOutputProcess:
                     zone["E_std_Pa"]
                 )
             )
+
+        for diagnostic in convergence_diagnostics:
+            Kratos.Logger.PrintInfo(
+                "MCMCPosteriorOutput",
+                (
+                    "parameter %d: "
+                    "rank-normalized R-hat = %.4f, "
+                    "bulk ESS = %.1f, "
+                    "tail ESS = %.1f"
+                )
+                % (
+                    diagnostic["parameter"],
+                    diagnostic[
+                        "rank_normalized_rhat"
+                    ],
+                    diagnostic["bulk_ess"],
+                    diagnostic["tail_ess"]
+                )
+            )
+
+    def _CalculateConvergenceDiagnostics(
+        self,
+        chains
+    ):
+        rank_normalized_rhat = np.asarray(
+            array_stats.rhat(
+                chains,
+                method="rank",
+                chain_axis=0,
+                draw_axis=1
+            ),
+            dtype=float
+        ).reshape(-1)
+
+        bulk_ess = np.asarray(
+            array_stats.ess(
+                chains,
+                method="bulk",
+                chain_axis=0,
+                draw_axis=1
+            ),
+            dtype=float
+        ).reshape(-1)
+
+        tail_ess = np.asarray(
+            array_stats.ess(
+                chains,
+                method="tail",
+                prob=(0.05, 0.95),
+                chain_axis=0,
+                draw_axis=1
+            ),
+            dtype=float
+        ).reshape(-1)
+
+        if not (
+            rank_normalized_rhat.size
+            == bulk_ess.size
+            == tail_ess.size
+            == chains.shape[2]
+        ):
+            raise RuntimeError(
+                "unexpected MCMC diagnostic dimensions"
+            )
+
+        total_draws = int(
+            chains.shape[0]
+            * chains.shape[1]
+        )
+
+        diagnostics = []
+
+        for parameter_index in range(
+            chains.shape[2]
+        ):
+            diagnostics.append(
+                {
+                    "parameter": parameter_index + 1,
+                    "rank_normalized_rhat": float(
+                        rank_normalized_rhat[
+                            parameter_index
+                        ]
+                    ),
+                    "bulk_ess": float(
+                        bulk_ess[
+                            parameter_index
+                        ]
+                    ),
+                    "tail_ess": float(
+                        tail_ess[
+                            parameter_index
+                        ]
+                    ),
+                    "relative_bulk_ess": float(
+                        bulk_ess[
+                            parameter_index
+                        ]
+                        / total_draws
+                    ),
+                    "relative_tail_ess": float(
+                        tail_ess[
+                            parameter_index
+                        ]
+                        / total_draws
+                    )
+                }
+            )
+
+        return diagnostics
 
     def _CalculateStatistics(
         self,
@@ -301,7 +456,8 @@ class MCMCPosteriorOutputProcess:
         log_posterior,
         acceptance_rates,
         warmup_acceptance_rates,
-        statistics
+        statistics,
+        convergence_diagnostics
     ):
         try:
             import pandas as pd
@@ -384,6 +540,14 @@ class MCMCPosteriorOutputProcess:
             diagnostic_frame.to_excel(
                 writer,
                 sheet_name="diagnostics",
+                index=False
+            )
+
+            pd.DataFrame(
+                convergence_diagnostics
+            ).to_excel(
+                writer,
+                sheet_name="convergence_diagnostics",
                 index=False
             )
 

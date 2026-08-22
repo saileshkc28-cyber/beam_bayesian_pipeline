@@ -1,0 +1,49 @@
+{
+  "algorithm": "RandomWalkMetropolisHastings",
+  "n_chains": 4,
+  "draws_per_chain": 1000,
+  "n_posterior_samples": 4000,
+  "burn_in": 500,
+  "proposal_std": [
+    0.06
+  ],
+  "random_seed": 20260822,
+  "acceptance_rates": [
+    0.38,
+    0.358,
+    0.353,
+    0.372
+  ],
+  "mean_acceptance_rate": 0.36575,
+  "warmup_acceptance_rates": [
+    0.416,
+    0.394,
+    0.324,
+    0.356
+  ],
+  "n_target_evaluations": 6004,
+  "n_forward_solves": 6004,
+  "convergence_diagnostics": [
+    {
+      "parameter": 1,
+      "rank_normalized_rhat": 1.003635152015996,
+      "bulk_ess": 786.219769233071,
+      "tail_ess": 950.0810453456711,
+      "relative_bulk_ess": 0.19655494230826775,
+      "relative_tail_ess": 0.23752026133641777
+    }
+  ],
+  "zones": [
+    {
+      "zone": 1,
+      "alpha_mean": 0.9832917693178508,
+      "alpha_std": 0.019367196557206975,
+      "alpha_p2.5": 0.9454996180557107,
+      "alpha_p50": 0.9836851167373315,
+      "alpha_p97.5": 1.0211908722785028,
+      "E_ref_Pa": 206900000000.0,
+      "E_mean_Pa": 203443067071.86334,
+      "E_std_Pa": 4007072967.686123
+    }
+  ]
+}
