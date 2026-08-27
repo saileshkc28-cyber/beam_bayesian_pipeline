@@ -15,4 +15,4 @@ venv/
 # Generated files
 *.log
 results/
-output/
+output/requirements_before_pints.txt

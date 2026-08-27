@@ -21,7 +21,7 @@ class MCMCAnalysis:
             "parameters": [],
             "likelihood": {},
             "sampler_settings": {
-                "python_module": "metropolis_hastings_sampler",
+                "python_module": "pints_metropolis_hastings_sampler",
                 "Parameters": {}
             },
             "output_processes": []

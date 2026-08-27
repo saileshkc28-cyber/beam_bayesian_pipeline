@@ -3,12 +3,11 @@ import numpy as np
 import KratosMultiphysics as Kratos
 
 from era.Distributions.ERADist import ERADist
-from era.Distributions.ERANataf import ERANataf
 
 
 class Likelihood:
-    """Likelihood ONLY. SMC_aCS holds the prior in its ERADist object, so adding
-    log_prior here would double-count it."""
+    """Likelihood ONLY. The sampler adapter's _LogPosterior adds the prior,
+    so adding log_prior here would double-count it."""
 
     @staticmethod
     def GetDefaultParameters():
@@ -61,9 +60,3 @@ class Prior:
             self.marginals.append(ERADist(prior["type"].GetString(), "PAR",
                                           list(prior["parameters"].GetVector())))
         self.dim = len(self.marginals)
-
-    def EraObject(self):
-        """SMC_aCS takes a single ERADist in 1D, an ERANataf otherwise."""
-        if self.dim == 1:
-            return self.marginals[0]
-        return ERANataf(self.marginals, np.identity(self.dim))
