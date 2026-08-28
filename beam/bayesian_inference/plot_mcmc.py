@@ -83,10 +83,12 @@ def create_zone_figure(chains, acceptance_rates, reference_value,
     combined_std = float(np.std(combined_samples, ddof=1))
     rhat = split_rhat(chains)
 
-    figure, axes = plt.subplots(2, 1, figsize=(9, 10))
+    figure = plt.figure(figsize=(11, 13))
+    grid = figure.add_gridspec(3, number_of_chains, height_ratios=[1.15, 0.75, 1.0],
+                               hspace=0.45, wspace=0.30)
 
     # ---------------------------------------------- combined posterior
-    posterior_axis = axes[0]
+    posterior_axis = figure.add_subplot(grid[0, :])
 
     posterior_axis.hist(
         combined_samples, bins=35, density=True, color="#4c78a8",
@@ -116,8 +118,37 @@ def create_zone_figure(chains, acceptance_rates, reference_value,
                    lambda youngs_modulus: youngs_modulus * 1.0e9 / reference_value))
     secondary_axis.set_xlabel("Young's modulus [GPa]", fontsize=9)
 
+    # ---------------------------------------------- per-chain posteriors
+    shared_bins = np.linspace(combined_samples.min(), combined_samples.max(), 30)
+
+    for chain_index in range(number_of_chains):
+        chain_axis = figure.add_subplot(grid[1, chain_index])
+        chain_samples = chains[chain_index]
+        chain_mean = float(np.mean(chain_samples))
+
+        chain_axis.hist(chain_samples, bins=shared_bins, density=True,
+                        color=colors[chain_index], edgecolor="white", alpha=0.85)
+        chain_axis.axvline(chain_mean, color="#1a3a5a", linewidth=1.4)
+
+        if truth is not None:
+            chain_axis.axvline(truth, color="crimson", linestyle="--", linewidth=1.2)
+
+        chain_axis.set_xlim(shared_bins[0], shared_bins[-1])
+        chain_axis.set_title(
+            f"chain {chain_index + 1}\n"
+            rf"$\alpha$ = {chain_mean:.4f} $\pm$ {np.std(chain_samples, ddof=1):.4f}",
+            fontsize=9)
+        chain_axis.set_xlabel(r"$\alpha$", fontsize=8)
+        chain_axis.tick_params(labelsize=7)
+        chain_axis.grid(True, axis="y", alpha=0.20)
+
+        if chain_index == 0:
+            chain_axis.set_ylabel("Density", fontsize=8)
+        else:
+            chain_axis.set_yticklabels([])
+
     # ---------------------------------------------- running mean
-    running_axis = axes[1]
+    running_axis = figure.add_subplot(grid[2, :])
 
     for chain_index in range(number_of_chains):
         running_mean = np.cumsum(chains[chain_index]) / draw_numbers
@@ -144,7 +175,7 @@ def create_zone_figure(chains, acceptance_rates, reference_value,
          f"mean acceptance = {np.mean(acceptance_rates):.3f}"),
         fontsize=13)
 
-    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
+    figure.subplots_adjust(top=0.90, bottom=0.06, left=0.08, right=0.96)
 
     output_file = os.path.join(
         OUTPUT_DIRECTORY,
