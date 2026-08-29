@@ -33,7 +33,7 @@
         "Parameters": {
             "n_chains": 4,
             "burn_in": 500,
-            "draws_per_chain": 1000,
+            "draws_per_chain": 1999,
             "proposal_std": [
                 0.06
             ],

@@ -1,49 +1,49 @@
 {
   "algorithm": "PINTS.MetropolisRandomWalkMCMC",
   "n_chains": 4,
-  "draws_per_chain": 1000,
-  "n_posterior_samples": 4000,
+  "draws_per_chain": 1999,
+  "n_posterior_samples": 7996,
   "burn_in": 500,
   "proposal_std": [
     0.06
   ],
   "random_seed": 20260822,
   "acceptance_rates": [
-    0.381,
-    0.382,
-    0.36,
-    0.348
+    0.3611805902951476,
+    0.37168584292146073,
+    0.34967483741870936,
+    0.35567783891945975
   ],
-  "mean_acceptance_rate": 0.36775,
+  "mean_acceptance_rate": 0.35955477738869435,
   "warmup_acceptance_rates": [
     0.38,
     0.376,
     0.376,
     0.352
   ],
-  "n_target_evaluations": 6004,
-  "n_forward_solves": 6004,
+  "n_target_evaluations": 10000,
+  "n_forward_solves": 10000,
   "convergence_diagnostics": [
     {
       "parameter": 1,
-      "rank_normalized_rhat": 1.008516752415984,
-      "bulk_ess": 784.737082534161,
-      "tail_ess": 742.9681954651061,
-      "relative_bulk_ess": 0.19618427063354024,
-      "relative_tail_ess": 0.18574204886627652
+      "rank_normalized_rhat": 1.003937841374622,
+      "bulk_ess": 1544.2794969649028,
+      "tail_ess": 1348.7783628952675,
+      "relative_bulk_ess": 0.1931315028720489,
+      "relative_tail_ess": 0.16868163617999843
     }
   ],
   "zones": [
     {
       "zone": 1,
-      "alpha_mean": 0.9817795126248057,
-      "alpha_std": 0.019466277271307807,
-      "alpha_p2.5": 0.9423131488431831,
-      "alpha_p50": 0.9818779109503815,
-      "alpha_p97.5": 1.0193391961797933,
+      "alpha_mean": 0.9827789422568486,
+      "alpha_std": 0.019546338822969706,
+      "alpha_p2.5": 0.945956485731979,
+      "alpha_p50": 0.982112764135903,
+      "alpha_p97.5": 1.0226231967443318,
       "E_ref_Pa": 206900000000.0,
-      "E_mean_Pa": 203130181162.0723,
-      "E_std_Pa": 4027572767.433585
+      "E_mean_Pa": 203336963152.942,
+      "E_std_Pa": 4044137502.472432
     }
   ]
 }
