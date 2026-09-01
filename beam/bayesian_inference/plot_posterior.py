@@ -26,6 +26,14 @@ if os.path.exists(truth_file):
         if block["properties_id"] == pid:
             truth = block["Material"]["Variables"]["YOUNG_MODULUS"] / E_ref
 
+noise_file = "../damaged_system/noise_model.json"
+if os.path.exists(noise_file):
+    noise = json.load(open(noise_file))
+    sigma_data = noise["sigma"]
+    sigma_assumed = json.load(open("BayesianParameters.json"))["likelihood"]["noise_model"]["sigma"]
+    print(f"sigma_assumed = {sigma_assumed:.6e}   sigma_data = {sigma_data:.6e}   "
+          f"ratio = {sigma_assumed / sigma_data:.4f}   (noise_fraction = {noise['noise_fraction']})")
+
 n = len(levels)
 colors = plt.cm.viridis(np.linspace(0.15, 0.9, n))
 colors[-1] = matplotlib.colors.to_rgba("#4878a8")   # q=1 keeps the posterior blue

@@ -31,6 +31,7 @@ class Likelihood:
 
         self.model = forward_model
         self.sigma = settings["noise_model"]["sigma"].GetDouble()
+        Kratos.Logger.PrintInfo("Likelihood", f"noise sigma = {self.sigma:.6e}")
         with open(settings["measured_data_file"].GetString()) as f:
             self.u_hat = np.array([float(row["value"]) for row in csv.DictReader(f)])
         self.cache = {}

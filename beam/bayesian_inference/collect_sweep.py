@@ -1,22 +1,29 @@
 r"""Builds one table from any sweep archive. Read-only; safe to re-run.
 
-    python collect_sweep.py                          # defaults to Load
-    python collect_sweep.py D:\...\Analysis\Prior
+    python collect_sweep.py                          # defaults to Prior
+    python collect_sweep.py D:\...\Analysis\Load
 
 Writes results.csv next to the run folders and prints the table.
+Layout adapts: load sweeps get the scaled column, prior sweeps get
+prior width and the Occam check.
 """
+import ast
 import csv
 import json
+import math
 import sys
 from pathlib import Path
 
 ARCHIVE = Path(sys.argv[1] if len(sys.argv) > 1
-               else r"D:\KratosProjects\MCMC\Analysis\Load")
+               else r"D:\KratosProjects\MCMC\Analysis\Prior")
 
-FIELDS = ["run", "label", "load_modulus", "sigma_assumed", "prior_type",
+SIGMA_2PCT = 3.788097e-08
+ALPHA_TRUE = 1.0
+
+FIELDS = ["run", "label", "load_modulus", "e_ref", "sigma_assumed", "prior_type",
           "prior_parameters", "alpha_mean", "alpha_std", "alpha_p2.5",
-          "alpha_p97.5", "alpha_scaled", "n_levels", "n_forward_solves",
-          "wall_time_s", "logcE"]
+          "alpha_p97.5", "alpha_scaled", "E_mean_Pa", "E_std_Pa", "n_levels",
+          "n_forward_solves", "wall_time_s", "logcE"]
 
 
 def collect(folder):
@@ -33,10 +40,16 @@ def collect(folder):
 
     load = info.get("load_modulus")
     params = info.get("prior_parameters")
+    e_mean = zone.get("E_mean") or zone.get("E_mean_Pa")
+    e_ref = info.get("e_ref") or info.get("reference_value")
+    if e_ref is None and e_mean and zone["alpha_mean"]:
+        e_ref = e_mean / zone["alpha_mean"]
+
     return {
         "run": folder.name,
         "label": info.get("label", folder.name.replace("output_", "")),
         "load_modulus": load,
+        "e_ref": e_ref,
         "sigma_assumed": info.get("sigma_assumed"),
         "prior_type": info.get("prior_type"),
         "prior_parameters": ",".join(str(p) for p in params) if params else None,
@@ -46,11 +59,33 @@ def collect(folder):
         "alpha_p97.5": zone["alpha_p97.5"],
         # u ~ F/alpha, so alpha should track the assumed load; flat if that holds
         "alpha_scaled": (zone["alpha_mean"] * 1000.0 / load) if load else None,
+        "E_mean_Pa": e_mean,
+        "E_std_Pa": zone.get("E_std") or zone.get("E_std_Pa"),
         "n_levels": len(summary["tempering_q"]),
         "n_forward_solves": summary["n_forward_solves"],
         "wall_time_s": info.get("wall_time_s"),
         "logcE": summary["logcE"],
     }
+
+
+def prior_text(row):
+    t = row.get("prior_type") or ""
+    raw = row.get("prior_parameters")
+    if not raw:
+        return row["label"]
+    p = [float(v) for v in str(raw).split(",")]
+    if t == "uniform":
+        return f"uniform[{p[0]:g},{p[1]:g}]"
+    if t == "normal":
+        return f"normal({p[0]:g},{p[1]:g})"
+    return f"{t}({raw})"
+
+
+def prior_width(row):
+    if (row.get("prior_type") or "") != "uniform" or not row.get("prior_parameters"):
+        return None
+    p = [float(v) for v in str(row["prior_parameters"]).split(",")]
+    return p[1] - p[0]
 
 
 def main():
@@ -60,8 +95,13 @@ def main():
     rows = [r for r in (collect(f) for f in sorted(ARCHIVE.iterdir()) if f.is_dir()) if r]
     if not rows:
         sys.exit(f"no summary.json found under {ARCHIVE}")
-    rows.sort(key=lambda r: (r["load_modulus"] is None,
-                             r["load_modulus"] if r["load_modulus"] else 0, r["run"]))
+
+    is_prior = len({r["prior_parameters"] for r in rows}) > 1
+    if is_prior:
+        rows.sort(key=lambda r: (prior_width(r) is None, prior_width(r) or 0, r["run"]))
+    else:
+        rows.sort(key=lambda r: (r["load_modulus"] is None,
+                                 r["load_modulus"] if r["load_modulus"] else 0, r["run"]))
 
     out = ARCHIVE / "results.csv"
     with open(out, "w", newline="") as f:
@@ -72,19 +112,55 @@ def main():
     def fmt(value, spec):
         return "" if value is None else format(value, spec)
 
-    show_scaled = any(r["alpha_scaled"] is not None for r in rows)
-    width = max(len(r["label"]) for r in rows) + 2
-    header = (f"{'run':<{width}}{'alpha':>9}{'std':>9}{'95% CI':>19}"
+    sigmas = {r["sigma_assumed"] for r in rows if r["sigma_assumed"] is not None}
+    if len(sigmas) == 1:
+        s = sigmas.pop()
+        pct = 2.0 * s / SIGMA_2PCT
+        tag = "matched 2%" if abs(pct - 2.0) < 0.01 else f"{pct:.2f}%  <-- NOT 2%"
+        print(f"sigma_assumed = {s:.6e}   ({tag})")
+    elif len(sigmas) > 1:
+        print("sigma_assumed VARIES across runs")
+
+    show_scaled = (not is_prior) and any(r["alpha_scaled"] is not None for r in rows)
+    labels = [prior_text(r) if is_prior else r["label"] for r in rows]
+    width = max(len(s) for s in labels) + 2
+
+    header = (f"{'run':<{width}}"
+              + (f"{'width':>7}" if is_prior else "")
+              + f"{'alpha':>9}{'std':>9}{'95% CI':>19}{'bias%':>8}"
               + (f"{'scaled':>9}" if show_scaled else "")
-              + f"{'lvls':>6}{'solves':>8}{'logcE':>9}{'time_s':>8}")
+              + f"{'lvls':>6}{'solves':>8}{'logcE':>9}"
+              + (f"{'-ln(w)':>9}{'resid':>8}" if is_prior else "")
+              + f"{'time_s':>8}")
     print(header)
     print("-" * len(header))
-    for r in rows:
+
+    base = None
+    for label, r in zip(labels, rows):
         ci = f"[{r['alpha_p2.5']:.4f},{r['alpha_p97.5']:.4f}]"
-        print(f"{r['label']:<{width}}{r['alpha_mean']:>9.4f}{r['alpha_std']:>9.4f}{ci:>19}"
+        w = prior_width(r)
+        occam = -math.log(w) if w else None
+        if is_prior and occam is not None and base is None:
+            base = r["logcE"] - occam
+        resid = (r["logcE"] - occam - base) if (occam is not None and base is not None) else None
+
+        print(f"{label:<{width}}"
+              + ((fmt(w, '>7.2f') if w else f"{'--':>7}") if is_prior else "")
+              + f"{r['alpha_mean']:>9.4f}{r['alpha_std']:>9.4f}{ci:>19}"
+              + f"{100 * (r['alpha_mean'] - ALPHA_TRUE):>8.2f}"
               + (fmt(r["alpha_scaled"], ">9.4f") if show_scaled else "")
-              + f"{r['n_levels']:>6d}{r['n_forward_solves']:>8d}"
-              f"{r['logcE']:>9.3f}{fmt(r['wall_time_s'], '>8.0f')}")
+              + f"{r['n_levels']:>6d}{r['n_forward_solves']:>8d}{r['logcE']:>9.3f}"
+              + ((fmt(occam, '>9.3f') if occam is not None else f"{'--':>9}")
+                 + (fmt(resid, '>8.3f') if resid is not None else f"{'--':>8}") if is_prior else "")
+              + fmt(r["wall_time_s"], ">8.0f"))
+
+    if is_prior:
+        a = [r["alpha_mean"] for r in rows]
+        spread = 100 * (max(a) - min(a)) / (sum(a) / len(a))
+        solves = [r["n_forward_solves"] for r in rows]
+        print(f"\nalpha spread across priors: {spread:.3f}%")
+        print(f"cost: {min(solves)} -> {max(solves)} forward solves")
+
     print(f"\nwrote {out}")
 
 

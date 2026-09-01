@@ -5,8 +5,8 @@ from KratosMultiphysics.StructuralMechanicsApplication.structural_mechanics_anal
 
 from sensors import read_sensors, interpolate
 
-# fixed noise floor, independent of the sensor set: 2% of the undamaged tip deflection
-NOISE_SIGMA = 3.77e-08
+# noise floor as a fraction of the peak true displacement
+NOISE_FRACTION = 0.02
 SEED = 20260802
 
 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     sensors = read_sensors("../sensor_placement/sensor_data.json")
     u_true = interpolate(model["Structure"], sensors)
 
-    sigma = NOISE_SIGMA
+    sigma = NOISE_FRACTION * float(np.abs(u_true).max())
     u_hat = u_true + np.random.default_rng(SEED).normal(0.0, sigma, u_true.shape)
 
     with open("measured_data.csv", "w") as f:
@@ -52,7 +52,7 @@ if __name__ == "__main__":
                     f"{s['location'][2]},{v:.16e}\n")
 
     with open("noise_model.json", "w") as f:
-        json.dump({"sigma": sigma, "seed": SEED,
+        json.dump({"sigma": sigma, "noise_fraction": NOISE_FRACTION, "seed": SEED,
                    "u_true": u_true.tolist(), "u_hat": u_hat.tolist()}, f, indent=2)
 
     for pid, E in sorted(E_true.items()):

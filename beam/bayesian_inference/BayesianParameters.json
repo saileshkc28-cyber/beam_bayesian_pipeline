@@ -22,7 +22,7 @@
         "measured_data_file": "../damaged_system/measured_data.csv",
         "noise_model": {
             "type": "gaussian_iid",
-            "sigma": 3.77e-08
+            "sigma": 3.788097e-08
         }
     },
     "sampler_settings": {
