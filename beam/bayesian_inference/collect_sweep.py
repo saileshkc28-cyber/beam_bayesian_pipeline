@@ -15,10 +15,16 @@ import sys
 from pathlib import Path
 
 ARCHIVE = Path(sys.argv[1] if len(sys.argv) > 1
-               else r"D:\KratosProjects\MCMC\Analysis\E_ref")  # default to the E_ref sweep
+               else r"D:\KratosProjects\MCMC\Analysis\E_ref")
 
 SIGMA_2PCT = 3.788097e-08
 ALPHA_TRUE = 1.0
+
+# Undamaged modulus the Phase 1 data was generated from. alpha is E_recovered
+# divided by the Phase 2 GUESS, so alpha equals the damage ratio only when the
+# guess happens to equal this value. The damage column below always divides by
+# this, so it stays comparable across sweeps.
+E_UNDAMAGED = 206.9e9
 
 FIELDS = ["run", "label", "load_modulus", "e_ref", "sigma_assumed", "prior_type",
           "prior_parameters", "alpha_mean", "alpha_std", "alpha_p2.5",
@@ -96,7 +102,6 @@ def main():
     if not rows:
         sys.exit(f"no summary.json found under {ARCHIVE}")
 
-    E_UNDAMAGED = 206.9e9
     is_eref = len({r["e_ref"] for r in rows}) > 1
     is_noise = (not is_eref) and len({r["sigma_assumed"] for r in rows}) > 1
     is_prior = (not is_noise) and (not is_eref) and len(
@@ -149,12 +154,13 @@ def main():
     width = max(len(s) for s in labels) + 2
 
     header = (f"{'run':<{width}}"
-              + (f"{'a_true':>8}" if is_eref else "")
               + (f"{'sigma':>13}{'x2%':>7}" if is_noise else "")
               + (f"{'width':>7}" if is_prior else "")
-              + f"{'alpha':>9}{'std':>9}{'95% CI':>19}{'bias%':>8}"
+              + f"{'alpha':>9}{'std':>9}{'95% CI':>19}"
+              + ("" if is_eref else f"{'bias%':>8}")
               + (f"{'scaled':>9}" if show_scaled else "")
               + (f"{'E [GPa]':>10}" if is_eref else "")
+              + f"{'damage':>9}"
               + (f"{'SD/x':>9}" if is_noise else "")
               + f"{'lvls':>6}{'solves':>8}{'logcE':>9}"
               + (f"{'-ln(w)':>9}{'resid':>8}" if is_prior else "")
@@ -172,15 +178,17 @@ def main():
         resid = (r["logcE"] - occam - base) if (occam is not None and base is not None) else None
 
         ratio = (r["sigma_assumed"] / SIGMA_2PCT) if r["sigma_assumed"] else None
-        a_true = (E_UNDAMAGED / r["e_ref"]) if (is_eref and r["e_ref"]) else ALPHA_TRUE
+        e_rec = r["alpha_mean"] * r["e_ref"] if r["e_ref"] else None
+        damage = (e_rec / E_UNDAMAGED) if e_rec else None
         print(f"{label:<{width}}"
-              + (f"{a_true:>8.4f}" if is_eref else "")
               + ((f"{r['sigma_assumed']:>13.6e}{ratio:>7.2f}") if is_noise else "")
               + ((fmt(w, '>7.2f') if w else f"{'--':>7}") if is_prior else "")
               + f"{r['alpha_mean']:>9.4f}{r['alpha_std']:>9.4f}{ci:>19}"
-              + f"{100 * (r['alpha_mean'] - a_true) / a_true:>8.2f}"
+              + ("" if is_eref
+                 else f"{100 * (r['alpha_mean'] - ALPHA_TRUE):>8.2f}")
               + (fmt(r["alpha_scaled"], ">9.4f") if show_scaled else "")
-              + (f"{r['alpha_mean'] * r['e_ref'] / 1e9:>10.2f}" if is_eref else "")
+              + (f"{e_rec / 1e9:>10.2f}" if (is_eref and e_rec) else "")
+              + (f"{damage:>9.4f}" if damage else f"{'--':>9}")
               + ((f"{r['alpha_std'] / ratio:>9.4f}" if ratio else f"{'--':>9}")
                  if is_noise else "")
               + f"{r['n_levels']:>6d}{r['n_forward_solves']:>8d}{r['logcE']:>9.3f}"
@@ -193,7 +201,9 @@ def main():
         m = sum(e) / len(e)
         print(f"\nrecovered E: mean {m:.2f} GPa, spread "
               f"{100 * (max(e) - min(e)) / m:.2f}%")
-        print("flat => E_ref is a parameterisation choice, not a physical assumption")
+        d = [x / E_UNDAMAGED * 1e9 for x in e]
+        print(f"damage ratio E/{E_UNDAMAGED / 1e9:.1f}: {sum(d) / len(d):.4f} "
+              f"(1.0 = undamaged); invariant to the guess, unlike alpha")
     elif is_noise:
         a = [r["alpha_mean"] for r in rows]
         spread = 100 * (max(a) - min(a)) / (sum(a) / len(a))
