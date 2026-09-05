@@ -1,0 +1,2 @@
+#,type,name,location_0,location_1,location_2,value,u_mean,u_std,u_hat_mean,u_hat_std,n_samples
+1,displacement_sensor,disp_y_tip,1.0,0.05,0.0,-1.8888845093113084e-06,-1.8885142863261275e-06,3.0348362801220436e-07,-1.8888845093113084e-06,3.0544590387910266e-07,998

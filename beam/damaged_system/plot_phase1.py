@@ -77,11 +77,14 @@ def gpa_axis(ax):
     secondary.set_xlabel("E [GPa]", fontsize=9)
 
 
-def draw_population(ax, data, color, label, mean_symbol, target=None, bins=None):
+def draw_population(ax, data, color, label, mean_symbol, target=None, bins=None,
+                    override=None):
     """One histogram in the plot_posterior.py idiom: navy mean, dotted +- 1 std,
-    crimson dashed reference where one exists."""
+    crimson dashed reference where one exists.
+
+    override = (mean, sd) takes the canonical whole-run values instead of recomputing."""
     bins = bins if bins is not None else min(40, max(6, n // 3))
-    mean, std = data.mean(), data.std(ddof=1)
+    mean, std = override if override is not None else (data.mean(), data.std(ddof=1))
     ax.hist(data, bins=bins, density=True, color=color, edgecolor="white",
             label=f"n = {n}")
     ax.axvline(mean, color=NAVY, lw=1.8,
@@ -131,8 +134,17 @@ gpa_axis(ax)
 ax = fig.add_subplot(gs[0, 2])
 u_main = u[:, 0] * 1e6
 skew = float(((u_main - u_main.mean()) ** 3).mean() / u_main.std() ** 3)
+
+# the whole-run u statistics come from the canonical summary when it exists, so the
+# figure label and the collapsed CSV always quote the same number
+canonical = os.path.join(root, "phase1_response_summary.json")
+u_stats = None
+if os.path.isfile(canonical):
+    s = json.load(open(canonical))
+    u_stats = (s["u_mean"][0] * 1e6, s["u_sd"][0] * 1e6)
 mean_u, std_u = draw_population(ax, u_main, colors[2],
-                                rf"$u$ [{sensor_names[0]}]  [$\mu$m]", "$u$")
+                                rf"$u$ [{sensor_names[0]}]  [$\mu$m]", "$u$",
+                                override=u_stats)
 ax.set_ylabel("density")
 ax.set_title(rf"response $u = \mathcal{{G}}(E)$   skew = {skew:+.3f}", fontsize=11)
 ax.legend(frameon=False, fontsize=8, loc="upper right")

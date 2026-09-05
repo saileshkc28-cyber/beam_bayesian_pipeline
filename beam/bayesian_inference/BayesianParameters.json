@@ -22,10 +22,10 @@
         }
     ],
     "likelihood": {
-        "measured_data_file": "../damaged_system/measured_data.csv",
+        "measured_data_file": "../damaged_system/phase1_distribution_runs/measured_data_collapsed.csv",
         "noise_model": {
             "type": "gaussian_iid",
-            "sigma": 3.788e-08
+            "sigma": 9.6687e-09
         }
     },
     "sampler_settings": {
@@ -56,7 +56,7 @@
         }
     ],
     "batch_inference": {
-        "enabled": true,
+        "enabled": false,
         "phase1_root": "../damaged_system/phase1_distribution_runs",
         "aggregate_file": "phase1_samples.csv",
         "output_path": "output_distribution",

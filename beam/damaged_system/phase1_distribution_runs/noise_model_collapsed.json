@@ -1,0 +1,21 @@
+{
+  "sigma": 9.66872114261184e-09,
+  "sigma_options": {
+    "sensor_noise": 3.788e-08,
+    "standard_error_of_the_mean": 9.66872114261184e-09,
+    "between_realization_sd": 3.0544590387910266e-07
+  },
+  "n_samples": 998,
+  "u_mean": [
+    -1.8885142863261275e-06
+  ],
+  "u_std": [
+    3.0348362801220436e-07
+  ],
+  "u_hat_mean": [
+    -1.8888845093113084e-06
+  ],
+  "u_hat_std": [
+    3.0544590387910266e-07
+  ]
+}
