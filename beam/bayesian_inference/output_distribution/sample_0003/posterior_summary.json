@@ -1,0 +1,21 @@
+{
+  "alpha_posterior_mean": 1.1260750098762984,
+  "alpha_posterior_sd": 0.02634289817074881,
+  "alpha_posterior_median": 1.1285672419480894,
+  "alpha_ci_2_5": 1.0751992491563342,
+  "alpha_ci_97_5": 1.1764539565570196,
+  "E_posterior_mean": 232984919543.40616,
+  "E_posterior_sd": 5450345631.527929,
+  "E_posterior_median": 233500562359.0597,
+  "E_ci_2_5": 222458724650.44556,
+  "E_ci_97_5": 243408323611.64734,
+  "sample_id": 3,
+  "status": "ok",
+  "number_of_posterior_samples": 1000,
+  "number_of_forward_solves": 10000,
+  "number_of_levels": 4,
+  "sigma_used": 3.788e-08,
+  "random_seed": 20260805,
+  "measured_data_file": "../damaged_system/phase1_distribution_runs\\sample_0003\\measured_data.csv",
+  "E_ref": 206900000000.0
+}

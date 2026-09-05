@@ -14,7 +14,10 @@
             "target_sub_model_part": "Structure.Beam_Auto1",
             "prior": {
                 "type": "uniform",
-                "parameters": [0.2, 2.0]
+                "parameters": [
+                    0.2,
+                    2.0
+                ]
             }
         }
     ],
@@ -22,7 +25,7 @@
         "measured_data_file": "../damaged_system/measured_data.csv",
         "noise_model": {
             "type": "gaussian_iid",
-            "sigma": 3.77e-08
+            "sigma": 3.788e-08
         }
     },
     "sampler_settings": {
@@ -51,5 +54,18 @@
                 "write_excel": true
             }
         }
-    ]
+    ],
+    "batch_inference": {
+        "enabled": true,
+        "phase1_root": "../damaged_system/phase1_distribution_runs",
+        "aggregate_file": "phase1_samples.csv",
+        "output_path": "output_distribution",
+        "start_sample": 1,
+        "end_sample": 1000,
+        "max_samples": 0,
+        "resume": true,
+        "base_random_seed": 20260802,
+        "n_resample_repeats": 1000,
+        "make_plots": true
+    }
 }
