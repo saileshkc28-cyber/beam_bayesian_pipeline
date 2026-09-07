@@ -22,10 +22,10 @@
         }
     ],
     "likelihood": {
-        "measured_data_file": "../damaged_system/phase1_distribution_runs/measured_data_collapsed.csv",
+        "measured_data_file": "../damaged_system/measured_data.csv",
         "noise_model": {
             "type": "gaussian_iid",
-            "sigma": 9.6687e-09
+            "sigma": 3.788097e-08
         }
     },
     "sampler_settings": {
@@ -67,5 +67,21 @@
         "base_random_seed": 20260802,
         "n_resample_repeats": 1000,
         "make_plots": true
+    },
+    "three_point_inference": {
+        "enabled": true,
+        "support_space": "alpha",
+        "alpha_mean": 1.0,
+        "alpha_std": 0.1,
+        "E_ref": 206900000000.0,
+        "measurement_noise_sigma": 3.788097e-08,
+        "measurement_generation": "zero_mean_noise",
+        "input_path": "three_point_inputs",
+        "output_path": "output_three_point",
+        "combined_sample_count": 100000,
+        "base_random_seed": 20260802,
+        "resume": false,
+        "make_plots": true,
+        "dry_run": false
     }
 }
