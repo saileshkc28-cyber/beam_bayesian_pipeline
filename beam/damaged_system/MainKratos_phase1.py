@@ -7,6 +7,9 @@ from sensors import read_sensors, interpolate
 
 # noise floor as a fraction of the peak true displacement
 NOISE_FRACTION = 0.02
+# set to a float to pin sigma regardless of which sensors are in the list;
+# None keeps the fraction rule above, which depends on the largest reading present
+NOISE_SIGMA = None
 SEED = 20260802
 
 
@@ -42,7 +45,12 @@ if __name__ == "__main__":
     sensors = read_sensors("../sensor_placement/sensor_data.json")
     u_true = interpolate(model["Structure"], sensors)
 
-    sigma = NOISE_FRACTION * float(np.abs(u_true).max())
+    if NOISE_SIGMA is not None:
+        sigma = float(NOISE_SIGMA)
+        sigma_source = "NOISE_SIGMA"
+    else:
+        sigma = NOISE_FRACTION * float(np.abs(u_true).max())
+        sigma_source = "NOISE_FRACTION"
     u_hat = u_true + np.random.default_rng(SEED).normal(0.0, sigma, u_true.shape)
 
     with open("measured_data.csv", "w") as f:
@@ -52,11 +60,12 @@ if __name__ == "__main__":
                     f"{s['location'][2]},{v:.16e}\n")
 
     with open("noise_model.json", "w") as f:
-        json.dump({"sigma": sigma, "noise_fraction": NOISE_FRACTION, "seed": SEED,
+        json.dump({"sigma": sigma, "noise_fraction": NOISE_FRACTION,
+                   "sigma_source": sigma_source, "seed": SEED,
                    "u_true": u_true.tolist(), "u_hat": u_hat.tolist()}, f, indent=2)
 
     for pid, E in sorted(E_true.items()):
         print(f"\nproperty {pid}: E_true = {E:.6e} Pa")
-    print(f"sigma = {sigma:.6e}")
+    print(f"sigma = {sigma:.6e}   ({sigma_source})")
     for s, ut, uh in zip(sensors, u_true, u_hat):
         print(f"{s['name']}: u_true = {ut: .6e}   u_hat = {uh: .6e}")
