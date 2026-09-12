@@ -110,6 +110,13 @@ def design_points(cfg):
 # --------------------------------------------------------------------------
 # Resumable solve driver
 # --------------------------------------------------------------------------
+def to_float(x):
+    """numpy 2 reprs as 'np.float64(1.0)'; accept those as well as plain text."""
+    if isinstance(x, str) and x.startswith("np.float"):
+        x = x[x.index("(") + 1:x.rindex(")")]
+    return float(x)
+
+
 def load_done(path):
     if not os.path.exists(path):
         return {}
@@ -118,8 +125,8 @@ def load_done(path):
         for row in csv.DictReader(f):
             if row.get("status") != "ok":
                 continue
-            u = [float(v) for k, v in row.items() if k.startswith("u_")]
-            done[float(row["E_Pa"])] = np.array(u)
+            u = [to_float(v) for k, v in row.items() if k.startswith("u_")]
+            done[to_float(row["E_Pa"])] = np.array(u)
     return done
 
 
@@ -144,7 +151,8 @@ def run_points(responder, e_values, csv_path, budget, label):
                 writer = csv.writer(f)
                 if new_header:
                     writer.writerow(cols)
-            writer.writerow([repr(e)] + [repr(v) for v in u] + ["ok"])
+            writer.writerow([repr(float(e))]
+                            + [repr(float(v)) for v in u] + ["ok"])
             f.flush()
             done[e] = u
             print(f"  E = {e / 1e9:8.3f} GPa  ->  u = {np.array2string(u, precision=6)}")

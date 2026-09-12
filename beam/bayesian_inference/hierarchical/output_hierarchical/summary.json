@@ -1,0 +1,78 @@
+{
+  "population_family": "normal",
+  "parameters": [
+    "mu_E",
+    "sd_E"
+  ],
+  "posterior": {
+    "mu_E": {
+      "mean": 206391552411.08243,
+      "sd": 676933894.4609405,
+      "ci95": [
+        205093104827.13727,
+        207731548765.0436
+      ]
+    },
+    "sd_E": {
+      "mean": 19822827452.11161,
+      "sd": 459798530.92277133,
+      "ci95": [
+        18987765866.148033,
+        20731801344.159912
+      ]
+    }
+  },
+  "implied_E_mean_GPa": 206.39155241108259,
+  "implied_E_sd_GPa": 19.822827452111632,
+  "logcE": 13818.072688070173,
+  "tempering_q": [
+    0.0,
+    0.003870870701553973,
+    0.017611664783976952,
+    0.08627624652591045,
+    0.6392602618430603,
+    1.0
+  ],
+  "n_levels": 6,
+  "n_likelihood_calls": 16000,
+  "n_forward_solves": 0,
+  "data": {
+    "n_observations": 983,
+    "n_sensors": 1,
+    "sensors": [
+      "disp_y_tip"
+    ],
+    "sigma_assumed_m": 3.788e-08,
+    "population_family": "normal",
+    "quadrature": {
+      "n_nodes": 512,
+      "t_span": 1.6094201941069861,
+      "min_spacing": 3.781887587694932e-05,
+      "max_spacing": 0.004932866340972397,
+      "mid_spacing": 0.004932866340972397
+    },
+    "table_shape": [
+      983,
+      512
+    ],
+    "table_MiB": 3.84,
+    "surrogate_identity": {
+      "training_hash": "b9f8b08d1c474877",
+      "n_training": 25,
+      "n_sensors": 1,
+      "e_scale_Pa": 206900000000.0,
+      "e_min_Pa": 80000000000.0,
+      "e_max_Pa": 400000000000.0,
+      "gp_jitter": 1e-10,
+      "kernels": [
+        "266**2 * Matern(length_scale=34, nu=2.5)"
+      ],
+      "versions": {
+        "python": "3.13.2",
+        "numpy": "2.4.6",
+        "scipy": "1.17.1",
+        "scikit-learn": "1.9.1"
+      }
+    }
+  }
+}
