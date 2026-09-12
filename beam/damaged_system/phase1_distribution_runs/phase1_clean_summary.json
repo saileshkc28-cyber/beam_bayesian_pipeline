@@ -1,0 +1,150 @@
+{
+  "source_file": "phase1_samples.csv",
+  "n_rows": 1000,
+  "n_valid": 983,
+  "n_excluded": 17,
+  "exclusion_rule": {
+    "status": "ok",
+    "law": "abs(u_true * alpha_true / u_ref - 1) <= tol",
+    "u_ref_m": -1.8940482566888715e-06,
+    "tol": 1e-09
+  },
+  "sensor": "disp_y_tip",
+  "sensor_noise_sigma": 3.788e-08,
+  "population_truth": {
+    "E_mean_Pa": 206442961290.02765,
+    "E_sd_Pa": 19890106121.411144,
+    "E_mean_GPa": 206.44296129002765,
+    "E_sd_GPa": 19.890106121411144,
+    "alpha_mean": 0.9977910163848607,
+    "alpha_sd": 0.09613391068830907,
+    "e_ref_Pa": 206900000000.0
+  },
+  "response": {
+    "u_mean": -1.9162490984845176e-06,
+    "u_sd": 1.8935839796456722e-07,
+    "u_hat_mean": -1.916653425973606e-06,
+    "u_hat_sd": 1.9236492411405053e-07
+  },
+  "excluded": [
+    {
+      "sample_id": "59",
+      "reason": "solver_failed",
+      "alpha_true": 0.9768765800852666,
+      "u_true": null,
+      "law_residual": null
+    },
+    {
+      "sample_id": "162",
+      "reason": "law_violation",
+      "alpha_true": 1.130922939888089,
+      "u_true": -1.917924579550395e-06,
+      "law_residual": 0.14517932493472752
+    },
+    {
+      "sample_id": "212",
+      "reason": "law_violation",
+      "alpha_true": 0.9862871913568623,
+      "u_true": -1.615193147902935e-08,
+      "law_residual": -0.9915892094738443
+    },
+    {
+      "sample_id": "221",
+      "reason": "law_violation",
+      "alpha_true": 0.9881214009606071,
+      "u_true": 3.971326044368858e-07,
+      "law_residual": -1.2071833302438244
+    },
+    {
+      "sample_id": "271",
+      "reason": "law_violation",
+      "alpha_true": 0.9359543886319153,
+      "u_true": -2.590155019044436e-07,
+      "law_residual": -0.8720060616855843
+    },
+    {
+      "sample_id": "396",
+      "reason": "solver_failed",
+      "alpha_true": 0.991333524685579,
+      "u_true": null,
+      "law_residual": null
+    },
+    {
+      "sample_id": "444",
+      "reason": "law_violation",
+      "alpha_true": 1.094881864476855,
+      "u_true": -1.07635666824026e-07,
+      "law_residual": -0.937779653100012
+    },
+    {
+      "sample_id": "585",
+      "reason": "law_violation",
+      "alpha_true": 0.8715885127670312,
+      "u_true": 2.10176702733565e-07,
+      "law_residual": -1.0967174933937904
+    },
+    {
+      "sample_id": "586",
+      "reason": "law_violation",
+      "alpha_true": 0.8913950944060067,
+      "u_true": -3.0883286939039163e-07,
+      "law_residual": -0.8546541230965334
+    },
+    {
+      "sample_id": "622",
+      "reason": "law_violation",
+      "alpha_true": 1.006371322246967,
+      "u_true": 2.173116544079187e-08,
+      "law_residual": -1.0115464965696541
+    },
+    {
+      "sample_id": "634",
+      "reason": "law_violation",
+      "alpha_true": 1.1464435613838004,
+      "u_true": 5.9191017787283176e-08,
+      "law_residual": -1.0358275777791504
+    },
+    {
+      "sample_id": "654",
+      "reason": "law_violation",
+      "alpha_true": 1.0138917486098675,
+      "u_true": -1.736180128688966e-08,
+      "law_residual": -0.9907061570350089
+    },
+    {
+      "sample_id": "659",
+      "reason": "law_violation",
+      "alpha_true": 0.8837413387956297,
+      "u_true": -2.400195305901347e-07,
+      "law_residual": -0.8880096214276828
+    },
+    {
+      "sample_id": "690",
+      "reason": "law_violation",
+      "alpha_true": 0.9885998619445822,
+      "u_true": -1.1647514738432859e-07,
+      "law_residual": -0.9392057123056516
+    },
+    {
+      "sample_id": "772",
+      "reason": "law_violation",
+      "alpha_true": 1.132135978786998,
+      "u_true": -1.9095446185705852e-07,
+      "law_residual": -0.8858601327527857
+    },
+    {
+      "sample_id": "843",
+      "reason": "law_violation",
+      "alpha_true": 0.7590382905106321,
+      "u_true": -6.514168546042557e-08,
+      "law_residual": -0.9738945228041331
+    },
+    {
+      "sample_id": "982",
+      "reason": "law_violation",
+      "alpha_true": 1.0673963288513602,
+      "u_true": 1.4868877421341746e-06,
+      "law_residual": -1.837939852780009
+    }
+  ]
+}
