@@ -417,6 +417,53 @@ def make_plots(cases, combined_alpha, stats, target, output_dir, E_ref):
     gpa_axis(ax)
     save(fig, "plotB_posterior_mixture.png")
 
+    # ---- Plot C: ONE box for the recovered population, E = mu +- between-case sd
+    mu_E = stats["E_recovered_mean"] / 1e9
+    sd_E = stats["E_between_case_sd"] / 1e9
+    tgt_E = target[0] * E_ref / 1e9
+    tgt_sd_E = target[1] * E_ref / 1e9
+
+    fig, ax = plt.subplots(figsize=(7.4, 3.0))
+
+    # the recovered population is the normal N(mu_E, sd_E); its quartiles are analytic
+    box = [dict(med=mu_E, q1=mu_E - 0.6745 * sd_E, q3=mu_E + 0.6745 * sd_E,
+                whislo=mu_E - 1.96 * sd_E, whishi=mu_E + 1.96 * sd_E, fliers=[])]
+    bp = ax.bxp(box, vert=False, widths=0.5, patch_artist=True, showfliers=False,
+                medianprops=dict(color="white", lw=2.0),
+                whiskerprops=dict(color=NAVY, lw=1.3),
+                capprops=dict(color=NAVY, lw=1.3),
+                boxprops=dict(facecolor=MAIN, edgecolor=NAVY, lw=1.3))
+
+    if tgt_sd_E > 0:
+        ax.axvspan(tgt_E - tgt_sd_E, tgt_E + tgt_sd_E, color="crimson", alpha=0.10,
+                   zorder=0, label=rf"Phase 1 target $\pm 1\sigma$ = $\pm${tgt_sd_E:.2f} GPa")
+    ax.axvline(tgt_E, color="crimson", ls="--", lw=1.5, zorder=1,
+               label=rf"Phase 1 target mean = {tgt_E:.2f} GPa")
+    ax.plot(mu_E, 1, marker="D", ms=7, color=NAVY, mec="white", mew=0.9, zorder=5,
+            label=rf"recovered {mu_E:.2f} $\pm$ {sd_E:.2f} GPa")
+
+    # the headline number, printed on the figure itself
+    ax.text(mu_E, 1.40, rf"$E$ = {mu_E:.2f} $\pm$ {sd_E:.2f} GPa",
+            ha="center", va="bottom", fontsize=13, color=NAVY, zorder=6)
+
+    ax.set_yticks([])
+    ax.set_ylim(0.55, 1.55)
+    ax.set_xlabel("E [GPa]")
+    ax.set_title("Recovered population of Young's modulus\n"
+                 "box = interquartile range, whiskers = 95% of the population",
+                 fontsize=10)
+    ax.legend(frameon=False, fontsize=8, loc="upper left", bbox_to_anchor=(0.0, -0.28),
+              ncol=1)
+    ax.grid(True, axis="x", alpha=0.25)
+    for side in ("left", "right", "top"):
+        ax.spines[side].set_visible(False)
+
+    secondary = ax.secondary_xaxis(
+        "top", functions=(lambda x: x * 1e9 / E_ref, lambda a: a * E_ref / 1e9))
+    secondary.set_xlabel(r"$\alpha = E/E_{ref}$", fontsize=9)
+
+    save(fig, "plotC_recovered_population_box.png")
+
     return written
 
 
