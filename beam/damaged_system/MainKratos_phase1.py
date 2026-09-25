@@ -162,14 +162,19 @@ def make_plots(xi_values, E_values, u_matrix, sensors, out_dir):
     plt.close(fig)
     written.append(path)
 
-    # 3) u, one panel per sensor (propagated, not assumed normal)
+    # 3) u, one panel per sensor (propagated, not assumed normal), at most 5 per row
     n = len(sensors)
-    fig, axes = plt.subplots(1, n, figsize=(6 * n, 4), squeeze=False)
+    ncols = min(n, 5)
+    nrows = -(-n // ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 4 * nrows), squeeze=False)
     for j, s in enumerate(sensors):
+        ax = axes[j // ncols][j % ncols]
         column = u_matrix[:, j]
-        histogram(axes[0][j], column, f"u [{s['name']}]")
-        axes[0][j].set_title(f"{s['name']}: mean = {column.mean():.4e}, "
-                             f"sd = {column.std(ddof=1):.4e}")
+        histogram(ax, column, f"u [{s['name']}]")
+        ax.set_title(f"{s['name']}: mean = {column.mean():.4e}, "
+                     f"sd = {column.std(ddof=1):.4e}")
+    for k in range(n, nrows * ncols):
+        axes[k // ncols][k % ncols].set_visible(False)
     fig.tight_layout()
     path = os.path.join(out_dir, "dist_u.png")
     fig.savefig(path, dpi=150)
@@ -335,6 +340,16 @@ def run_distribution():
 
 
 if __name__ == "__main__":
+
+    import argparse
+    ap = argparse.ArgumentParser(description="Phase 1 forward sampling")
+    ap.add_argument("--sensors", default=SENSOR_DATA_PATH,
+                    help="sensor layout JSON (default: %(default)s)")
+    ap.add_argument("--out", default=OUTPUT_DIRECTORY,
+                    help="output folder for the distribution run (default: %(default)s)")
+    args = ap.parse_args()
+    SENSOR_DATA_PATH = args.sensors        # run_forward and run_distribution read these
+    OUTPUT_DIRECTORY = args.out
 
     if RUN_SINGLE_DETERMINISTIC:
         run_single_deterministic()
