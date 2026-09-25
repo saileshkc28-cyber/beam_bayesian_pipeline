@@ -1,0 +1,11 @@
+#,type,name,location_0,location_1,location_2,value
+1,displacement_sensor,disp_y_tip,1.0,0.05,0.0,-1.8021753313144486e-06
+2,displacement_sensor,disp_y_x0900,0.9,0.05,0.0,-1.5321252067249559e-06
+3,displacement_sensor,disp_y_x0800,0.8,0.05,0.0,-1.3274468573672640e-06
+4,displacement_sensor,disp_y_x0700,0.7,0.05,0.0,-1.0356994474020945e-06
+5,displacement_sensor,disp_y_x0600,0.6,0.05,0.0,-8.1612084689647757e-07
+6,displacement_sensor,disp_y_x0500,0.5,0.05,0.0,-6.0150419769447105e-07
+7,displacement_sensor,disp_y_x0400,0.4,0.05,0.0,-3.4855808984167122e-07
+8,displacement_sensor,disp_y_x0300,0.3,0.05,0.0,-2.7966340283046928e-07
+9,displacement_sensor,disp_y_x0200,0.2,0.05,0.0,-9.5701341053924537e-08
+10,displacement_sensor,disp_y_x0100,0.1,0.05,0.0,-1.8942301808259377e-08
