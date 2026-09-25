@@ -81,6 +81,52 @@
                         "End"
                     ]
                 }
+            },
+            {
+                "python_module": "assign_vector_variable_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "AssignVectorVariableProcess",
+                "Parameters": {
+                    "model_part_name": "Structure",
+                    "variable_name": "DISPLACEMENT",
+                    "value": [
+                        null,
+                        null,
+                        0.0
+                    ],
+                    "constrained": [
+                        false,
+                        false,
+                        true
+                    ],
+                    "interval": [
+                        0.0,
+                        "End"
+                    ]
+                }
+            },
+            {
+                "python_module": "assign_vector_variable_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "AssignVectorVariableProcess",
+                "Parameters": {
+                    "model_part_name": "Structure",
+                    "variable_name": "ROTATION",
+                    "value": [
+                        0.0,
+                        0.0,
+                        null
+                    ],
+                    "constrained": [
+                        true,
+                        true,
+                        false
+                    ],
+                    "interval": [
+                        0.0,
+                        "End"
+                    ]
+                }
             }
         ],
         "loads_process_list": [
