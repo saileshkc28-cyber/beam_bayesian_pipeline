@@ -1,10 +1,13 @@
+import sys
+
 import KratosMultiphysics as Kratos
 from bayesian_analysis import BayesianAnalysis
 
 
 if __name__ == "__main__":
 
-    with open("BayesianParameters.json", "r") as file_input:
+    config = sys.argv[1] if len(sys.argv) > 1 else "BayesianParameters.json"
+    with open(config, "r") as file_input:
         parameters = Kratos.Parameters(file_input.read())
 
     # batch mode runs one independent inversion per Phase 1 realization; absent or

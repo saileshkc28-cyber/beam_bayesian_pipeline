@@ -14,6 +14,18 @@ row order, and a "value" column -- so the existing Likelihood can read it unchan
 
     python collapse_phase1.py
     python collapse_phase1.py phase1_distribution_runs
+    python collapse_phase1.py phase1_distribution_runs_10s --sensors ../sensor_placement/sensor_data_10s.json
+
+If <folder>/phase1_samples_clean.csv exists (written by clean_phase1.py), only its
+valid == 1 rows are used and the outputs get a _clean suffix:
+
+    measured_data_collapsed_clean.csv, phase1_response_summary_clean.json,
+    noise_model_collapsed_clean.json
+
+so the legacy files are never overwritten. Without it, the legacy behaviour is
+unchanged (all status == ok rows, unsuffixed file names). Rows are always in the
+column order of phase1_samples.csv, which Phase 1 writes in sensor-file order;
+--sensors checks that against a sensor file.
 
 READ BEFORE USING THIS AS PHASE 2 INPUT
 ---------------------------------------
@@ -29,25 +41,46 @@ structure. Two consequences, both quantified in the console output:
 The file is written regardless -- it is a useful summary and a fair diagnostic.
 Just do not expect the population sd to come back out of an inversion that used it.
 """
+import argparse
 import csv
 import json
 import os
-import sys
 import numpy as np
 
-root = sys.argv[1] if len(sys.argv) > 1 else "phase1_distribution_runs"
+ap = argparse.ArgumentParser(description="Collapse Phase 1 into per-sensor means")
+ap.add_argument("root", nargs="?", default="phase1_distribution_runs",
+                help="Phase 1 output folder (default: %(default)s)")
+ap.add_argument("--sensors", help="sensor file whose order the rows must follow")
+args = ap.parse_args()
+root = args.root
 
 # ------------------------------------------------------------------ read the record
 aggregate = os.path.join(root, "phase1_samples.csv")
 if not os.path.isfile(aggregate):
     raise SystemExit(f"no Phase 1 record found: {aggregate}")
 
-with open(aggregate, newline="") as f:
-    rows = [r for r in csv.DictReader(f) if r.get("status", "").strip().strip('"') == "ok"]
+clean_file = os.path.join(root, "phase1_samples_clean.csv")
+use_clean = os.path.isfile(clean_file)
+suffix = "_clean" if use_clean else ""
+if use_clean:
+    with open(clean_file, newline="") as f:
+        rows = [r for r in csv.DictReader(f) if r.get("valid", "").strip() == "1"]
+    source = f"{clean_file} (valid == 1)"
+else:
+    with open(aggregate, newline="") as f:
+        rows = [r for r in csv.DictReader(f)
+                if r.get("status", "").strip().strip('"') == "ok"]
+    source = f"{aggregate} (status == ok)"
 if len(rows) < 2:
-    raise SystemExit(f"only {len(rows)} valid samples in {aggregate}")
+    raise SystemExit(f"only {len(rows)} valid samples in {source}")
 
 sensor_names = [c[len("u_true_"):] for c in rows[0] if c.startswith("u_true_")]
+if args.sensors:
+    with open(args.sensors) as f:
+        expected = [s["name"] for s in json.load(f)["list_of_sensors"]]
+    if sensor_names != expected:
+        raise SystemExit(f"column order {sensor_names} does not match {args.sensors} "
+                         f"{expected}")
 u_true = np.array([[float(r[f"u_true_{s}"]) for s in sensor_names] for r in rows])
 u_hat = np.array([[float(r[f"u_hat_{s}"]) for s in sensor_names] for r in rows])
 alpha = np.array([float(r["alpha_true"]) for r in rows])
@@ -71,7 +104,7 @@ for r in rows:
         break
 
 # ------------------------------------------------------------------ write the file
-out_csv = os.path.join(root, "measured_data_collapsed.csv")
+out_csv = os.path.join(root, f"measured_data_collapsed{suffix}.csv")
 with open(out_csv, "w", newline="") as f:
     f.write("#,type,name,location_0,location_1,location_2,value,"
             "u_mean,u_std,u_hat_mean,u_hat_std,n_samples\n")
@@ -89,7 +122,7 @@ with open(out_csv, "w", newline="") as f:
 # ONE mean and ONE sd of u for the entire run, computed here and nowhere else.
 # Every other script reads this file rather than recomputing, so the number quoted in
 # a figure, a table and the collapsed CSV can never drift apart.
-summary_path = os.path.join(root, "phase1_response_summary.json")
+summary_path = os.path.join(root, f"phase1_response_summary{suffix}.json")
 json.dump({
     "n_samples": n,
     "sensors": sensor_names,
@@ -103,15 +136,31 @@ json.dump({
 }, open(summary_path, "w"), indent=2)
 
 # a matching noise model, so Phase 2 has a sigma to read if this file is used
-out_json = os.path.join(root, "noise_model_collapsed.json")
-sigma_mean = float(u_hat[:, 0].std(ddof=1) / np.sqrt(n))
+out_json = os.path.join(root, f"noise_model_collapsed{suffix}.json")
+if use_clean:
+    # per-sensor options; "sigma" is the instrument sigma (one value for every sensor)
+    sem = u_hat.std(axis=0, ddof=1) / np.sqrt(n)
+    sigma_block = {
+        "sigma": sigma,
+        "sigma_options": {
+            "sensor_noise": sigma,
+            "standard_error_of_the_mean": sem.tolist(),
+            "between_realization_sd": u_hat.std(axis=0, ddof=1).tolist(),
+        },
+        "sensors": sensor_names,
+    }
+else:
+    sigma_mean = float(u_hat[:, 0].std(ddof=1) / np.sqrt(n))
+    sigma_block = {
+        "sigma": sigma_mean,
+        "sigma_options": {
+            "sensor_noise": sigma,
+            "standard_error_of_the_mean": sigma_mean,
+            "between_realization_sd": float(u_hat[:, 0].std(ddof=1)),
+        },
+    }
 json.dump({
-    "sigma": sigma_mean,
-    "sigma_options": {
-        "sensor_noise": sigma,
-        "standard_error_of_the_mean": sigma_mean,
-        "between_realization_sd": float(u_hat[:, 0].std(ddof=1)),
-    },
+    **sigma_block,
     "n_samples": n,
     "u_mean": u_true.mean(axis=0).tolist(),
     "u_std": u_true.std(axis=0, ddof=1).tolist(),
@@ -119,6 +168,7 @@ json.dump({
     "u_hat_std": u_hat.std(axis=0, ddof=1).tolist(),
 }, open(out_json, "w"), indent=2)
 
+print(f"source {source}")
 print(f"wrote {out_csv}")
 print(f"wrote {summary_path}   <- canonical whole-run u mean and sd")
 print(f"wrote {out_json}\n")
