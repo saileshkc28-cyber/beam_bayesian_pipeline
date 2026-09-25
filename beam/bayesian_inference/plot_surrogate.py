@@ -61,39 +61,26 @@ def main():
     mean, sd = gp.predict(e_fine, return_std=True)
     k = args.sensor
 
-    fig, ax = plt.subplots(2, 1, figsize=(8.2, 7.4), sharex=True,
-                           gridspec_kw={"height_ratios": [3, 2]})
+    fig, ax = plt.subplots(figsize=(8.2, 4.8))
 
-    ax[0].fill_between(e_fine / 1e9, (mean[:, k] - 2 * sd[:, k]) * 1e6,
-                       (mean[:, k] + 2 * sd[:, k]) * 1e6,
-                       color="0.85", label="GP 95% band")
-    ax[0].plot(e_fine / 1e9, mean[:, k] * 1e6, "-", color="C0", lw=1.6,
-               label="GP surrogate")
-    ax[0].plot(e_tr / 1e9, u_tr[:, k] * 1e6, "o", ms=5, color="C3",
-               label=f"training solves (n={e_tr.size})")
-    ax[0].plot(e_va / 1e9, u_va[:, k] * 1e6, "x", ms=7, mew=1.6, color="C2",
-               label=f"validation solves (n={e_va.size})")
-    ax[0].set_ylabel(r"tip deflection  $u$  [$\mu$m]")
-    ax[0].set_title("Response surrogate  $u(E)$")
-    ax[0].legend(frameon=False, fontsize=9)
-    ax[0].grid(alpha=0.3)
+    ax.fill_between(e_fine / 1e9, (mean[:, k] - 2 * sd[:, k]) * 1e6,
+                    (mean[:, k] + 2 * sd[:, k]) * 1e6,
+                    color="0.85", label="GP 95% band")
+    ax.plot(e_fine / 1e9, mean[:, k] * 1e6, "-", color="C0", lw=1.6,
+            label="GP surrogate")
+    ax.plot(e_tr / 1e9, u_tr[:, k] * 1e6, "o", ms=5, color="C3",
+            label=f"training solves (n={e_tr.size})")
+    ax.plot(e_va / 1e9, u_va[:, k] * 1e6, "x", ms=7, mew=1.6, color="C2",
+            label=f"validation solves (n={e_va.size})")
+    ax.set_xscale("log")
+    ax.set_xlabel("Young's modulus  $E$  [GPa]")
+    ax.set_ylabel(r"tip deflection  $u$  [$\mu$m]")
+    ax.set_title("Response surrogate  $u(E)$")
+    ax.legend(frameon=False, fontsize=9)
+    ax.grid(alpha=0.3)
 
-    res_tr = (gp.predict(e_tr)[:, k] - u_tr[:, k])
-    res_va = (gp.predict(e_va)[:, k] - u_va[:, k])
-    ax[1].axhspan(-gate * 1e9, gate * 1e9, color="C1", alpha=0.15,
-                  label=f"gate  ±{gate:.2e} m")
-    ax[1].axhline(0.0, color="0.5", lw=0.8)
-    ax[1].plot(e_tr / 1e9, res_tr * 1e9, "o", ms=5, color="C3", label="training")
-    ax[1].plot(e_va / 1e9, res_va * 1e9, "x", ms=7, mew=1.6, color="C2",
-               label="validation")
-    ax[1].set_xlabel("Young's modulus  $E$  [GPa]")
-    ax[1].set_ylabel("surrogate $-$ Kratos  [nm]")
-    ax[1].set_title(f"Residuals   max |validation error| = "
-                    f"{np.abs(res_va).max():.3e} m  "
-                    f"({np.abs(res_va).max() / sigma[k]:.1e} $\\sigma$)")
-    ax[1].legend(frameon=False, fontsize=9)
-    ax[1].grid(alpha=0.3)
-    ax[1].set_xscale("log")
+    res_tr = gp.predict(e_tr)[:, k] - u_tr[:, k]
+    res_va = gp.predict(e_va)[:, k] - u_va[:, k]
 
     fig.tight_layout()
     png = os.path.join(out["dir"], "surrogate_fit.png")

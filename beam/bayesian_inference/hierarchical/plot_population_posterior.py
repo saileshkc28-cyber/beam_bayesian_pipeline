@@ -40,12 +40,22 @@ if os.path.exists(sfile):
 
 
 def alpha_axis(ax, where="top", label=r"$\alpha = E/E_{ref}$"):
-    """Secondary scale in alpha. Every axis in this file is already in GPa."""
+    """Secondary scale in alpha. Every axis in this file is already in GPa.
+    Ticks are given enough decimals to stay distinct -- mu_alpha spans about
+    0.003, so the default two-decimal formatter would print 1.00 five times."""
     fwd, inv = (lambda v: v / E_REF), (lambda v: v * E_REF)
-    sec = (ax.secondary_xaxis(where, functions=(fwd, inv)) if where in ("top", "bottom")
+    horizontal = where in ("top", "bottom")
+    sec = (ax.secondary_xaxis(where, functions=(fwd, inv)) if horizontal
            else ax.secondary_yaxis(where, functions=(fwd, inv)))
-    sec.set_xlabel(label, fontsize=9) if where in ("top", "bottom") \
-        else sec.set_ylabel(label, fontsize=9)
+    lo, hi = (ax.get_xlim() if horizontal else ax.get_ylim())
+    span = abs(hi - lo) / E_REF
+    dec = 2 if span <= 0 else int(np.clip(np.ceil(-np.log10(span / 5.0)) + 1, 2, 6))
+    fmt = matplotlib.ticker.FuncFormatter(lambda v, _pos: f"{v:.{dec}f}")
+    (sec.xaxis if horizontal else sec.yaxis).set_major_formatter(fmt)
+    (sec.xaxis if horizontal else sec.yaxis).set_major_locator(
+        matplotlib.ticker.MaxNLocator(nbins=6))
+    sec.set_xlabel(label, fontsize=9) if horizontal else sec.set_ylabel(label,
+                                                                       fontsize=9)
     return sec
 
 
@@ -226,7 +236,9 @@ stats, rows = [], []
 for name, p_mu, p_sd in CASES:
     m = np.percentile(post_g[:, 0], p_mu)
     s = np.percentile(post_g[:, 1], p_sd)
-    stats.append({"label": f"{name}\n$\\mu$={m:.2f}  $\\sigma$={s:.2f}",
+    stats.append({"label": f"{name}\n$\\mu$={m:.2f}  $\\sigma$={s:.2f} GPa\n"
+                           f"$\\mu_\\alpha$={m / E_REF:.4f}  "
+                           f"$\\sigma_\\alpha$={s / E_REF:.4f}",
                   "med": m, "q1": m + Z25 * s, "q3": m + Z75 * s,
                   "whislo": m + Z05 * s, "whishi": m + Z95 * s, "fliers": []})
     rows.append((name, p_mu, p_sd, m, s, m + Z05 * s))
