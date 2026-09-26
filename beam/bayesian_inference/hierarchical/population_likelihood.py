@@ -24,17 +24,33 @@ from response_surrogate import ResponseSurrogate
 _LOG2PI = np.log(2.0 * np.pi)
 
 
-def read_observations(path, require_valid=True):
+def read_observations(path, require_valid=True, sensor_names=None, n_outputs=None):
     """Observation-only reader. Returns the u_hat columns and nothing else --
-    alpha_true, E_true and xi are ground truth and must not reach inference."""
+    alpha_true, E_true and xi are ground truth and must not reach inference.
+
+    With sensor_names (the surrogate's outputs, in its order) exactly the columns
+    u_hat_<name> are taken, in that order. Without them the file order is kept and
+    only accepted when the column count equals n_outputs; the caller warns."""
     with open(path, newline="") as f:
         rows = list(csv.DictReader(f))
     if not rows:
         raise RuntimeError(f"{path} is empty")
 
-    hat_cols = sorted(c for c in rows[0] if c.startswith("u_hat_"))
-    if not hat_cols:
-        raise RuntimeError(f"no u_hat_* columns in {path}")
+    if sensor_names:
+        hat_cols = [f"u_hat_{name}" for name in sensor_names]
+        missing = [name for name, c in zip(sensor_names, hat_cols) if c not in rows[0]]
+        if missing:
+            raise RuntimeError(f"{path} has no u_hat_ column for the surrogate's "
+                               f"sensor(s) {', '.join(missing)}")
+    else:
+        hat_cols = [c for c in rows[0] if c.startswith("u_hat_")]
+        if not hat_cols:
+            raise RuntimeError(f"no u_hat_* columns in {path}")
+        if n_outputs is not None and len(hat_cols) != n_outputs:
+            raise RuntimeError(
+                f"{path} has {len(hat_cols)} u_hat_ column(s) but the surrogate "
+                f"returns {n_outputs} output(s), and it records no sensor names to "
+                "select them by")
 
     if require_valid:
         if "valid" not in rows[0]:
@@ -84,11 +100,23 @@ class PopulationLikelihood:
                                "analyst assumption -- type it in, do not read "
                                "it from Phase 1")
 
+        # the surrogate first: its sensor names decide which columns are read
+        self.surrogate = ResponseSurrogate.load(settings["surrogate_file"].GetString())
+        names = self.surrogate.sensor_names
+        if not names:
+            Kratos.Logger.PrintWarning(
+                "PopulationLikelihood",
+                "the surrogate records no sensor names; the observation columns are "
+                "taken in file order and matched to the surrogate outputs by position "
+                "only. Rebuild the surrogate to match them by name.")
         self.obs, self.sensors = read_observations(
             settings["observations_file"].GetString(),
-            settings["require_valid_column"].GetBool())
+            settings["require_valid_column"].GetBool(),
+            sensor_names=names, n_outputs=self.surrogate.n_sensors_)
+        Kratos.Logger.PrintInfo(
+            "PopulationLikelihood", "observation columns, in surrogate output order: "
+            + ", ".join(f"u_hat_{s}" for s in self.sensors))
 
-        self.surrogate = ResponseSurrogate.load(settings["surrogate_file"].GetString())
         q = settings["quadrature"]
         self.grid = LogEGrid(q["e_min_Pa"].GetDouble(), q["e_max_Pa"].GetDouble(),
                              q["n_nodes"].GetInt(), self.surrogate.e_scale)

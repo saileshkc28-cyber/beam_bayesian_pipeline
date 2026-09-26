@@ -83,7 +83,15 @@ def build_forward_model(base_config_path):
     fm = KratosForwardModel(model, settings["forward_model"], entries)
     if fm.refs.size != 1:
         raise RuntimeError(f"expected one reference value, got {fm.refs.size}")
-    return fm, float(fm.refs[0])
+
+    # KratosForwardModel has filled in the default, so the key is always there
+    sensor_file = settings["forward_model"]["sensor_data_file"].GetString()
+    with open(sensor_file) as f:
+        names = [s["name"] for s in json.load(f)["list_of_sensors"]]
+    if len(names) != len(fm.located):
+        raise RuntimeError(f"{sensor_file} lists {len(names)} sensors, "
+                           f"the forward model located {len(fm.located)}")
+    return fm, float(fm.refs[0]), sensor_file, names
 
 
 # --------------------------------------------------------------------------
@@ -117,12 +125,20 @@ def to_float(x):
     return float(x)
 
 
-def load_done(path):
+def load_done(path, n_sensors):
     if not os.path.exists(path):
         return {}
     done = {}
     with open(path, newline="") as f:
-        for row in csv.DictReader(f):
+        reader = csv.DictReader(f)
+        # columns are u_0, u_1, ... in sensor-file order; names are not in the file
+        cols = [c for c in (reader.fieldnames or []) if c.startswith("u_")]
+        if cols and len(cols) != n_sensors:
+            raise RuntimeError(
+                f"{path} holds {len(cols)} response column(s) but the current sensor "
+                f"file has {n_sensors} sensor(s). Use a fresh output folder; the "
+                "existing file is left as it is.")
+        for row in reader:
             if row.get("status") != "ok":
                 continue
             u = [to_float(v) for k, v in row.items() if k.startswith("u_")]
@@ -130,8 +146,8 @@ def load_done(path):
     return done
 
 
-def run_points(responder, e_values, csv_path, budget, label):
-    done = load_done(csv_path)
+def run_points(responder, e_values, csv_path, budget, label, n_sensors):
+    done = load_done(csv_path, n_sensors)
     todo = [e for e in e_values if not any(abs(e - k) <= 1e-6 * e for k in done)]
     print(f"[{label}] {len(done)} already on file, {len(todo)} to solve")
 
@@ -192,12 +208,16 @@ def main():
         am = cfg["analytic_check_model"]
         responder = AnalyticResponse(am["u_ref_m"], am["e_ref_Pa"])
         e_ref = am["e_ref_Pa"]
+        sensor_file, sensor_names = None, None
+        n_sensors = responder.u_ref.size
         print("VERIFICATION MODEL in use (u = u_ref * E_ref / E) -- not production")
     else:
-        fm, e_ref = build_forward_model(cfg["base_config"])
+        fm, e_ref, sensor_file, sensor_names = build_forward_model(cfg["base_config"])
         responder = ExactResponse(fm, e_ref)
+        n_sensors = len(sensor_names)
         print(f"Kratos forward model built, E_ref read from model = {e_ref:.6e} Pa "
               f"({e_ref / 1e9:.4f} GPa), {len(fm.located)} sensor(s)")
+        print(f"sensor file {sensor_file}: {', '.join(sensor_names)}")
 
     e_train, e_valid = design_points(cfg)
     budget = {"used": 0, "max": cfg["budget"]["max_new_solves"]}
@@ -208,9 +228,10 @@ def main():
                      float(e_train[-1])]
             repeatability_check(responder, probe)
             return
-        e_tr, u_tr = run_points(responder, e_train, out["training_csv"], budget, "training")
+        e_tr, u_tr = run_points(responder, e_train, out["training_csv"], budget, "training",
+                                n_sensors)
         e_va, u_va = run_points(responder, e_valid, out["validation_csv"], budget,
-                                "validation")
+                                "validation", n_sensors)
     finally:
         if not args.analytic:
             responder.fm.Finalize()
@@ -222,7 +243,9 @@ def main():
     d, g = cfg["domain"], cfg["gp"]
     gp = ResponseSurrogate(d["e_scale_Pa"], d["e_min_Pa"], d["e_max_Pa"],
                            gp_jitter=g["gp_jitter"],
-                           n_restarts=g["n_restarts_optimizer"]).fit(e_tr, u_tr)
+                           n_restarts=g["n_restarts_optimizer"],
+                           sensor_names=sensor_names, sensor_data_file=sensor_file,
+                           random_state=g.get("random_state", 20260911)).fit(e_tr, u_tr)
     base = InterpBaseline(d["e_scale_Pa"]).fit(e_tr, u_tr)
     if args.stage == "fit":
         gp.save(out["model_file"])

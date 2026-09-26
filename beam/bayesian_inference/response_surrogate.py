@@ -24,7 +24,8 @@ class ResponseSurrogate:
     sensor vector. Never extrapolates: out-of-domain input raises DomainError."""
 
     def __init__(self, e_scale_Pa, e_min_Pa, e_max_Pa, gp_jitter=1e-10,
-                 n_restarts=8, sensor_names=None):
+                 n_restarts=8, sensor_names=None, sensor_data_file=None,
+                 random_state=20260911):
         if not (0.0 < e_min_Pa < e_max_Pa):
             raise ValueError("require 0 < e_min_Pa < e_max_Pa")
         self.e_scale = float(e_scale_Pa)
@@ -32,7 +33,11 @@ class ResponseSurrogate:
         self.e_max = float(e_max_Pa)
         self.gp_jitter = float(gp_jitter)
         self.n_restarts = int(n_restarts)
+        # output columns in sensor-file order; None for surrogates that predate this
         self.sensor_names = list(sensor_names) if sensor_names else None
+        self.sensor_data_file = str(sensor_data_file) if sensor_data_file else None
+        # one seed for every sensor's GP, so each GP depends only on its own column
+        self.random_state = int(random_state)
         self.gps_ = None
         self.identity_ = None
 
@@ -64,11 +69,16 @@ class ResponseSurrogate:
             u = u.T
         if u.shape[0] != e.size:
             raise ValueError("u_train_m must have one row per training E")
+        if self.sensor_names is not None and len(self.sensor_names) != u.shape[1]:
+            raise ValueError(f"{len(self.sensor_names)} sensor names for "
+                             f"{u.shape[1]} response column(s)")
         self.check_domain(e)
 
         t = self.t_of(e).reshape(-1, 1)
-        self.y_mean_ = u.mean(axis=0)
-        std = u.std(axis=0)
+        # per column, not along axis 0: numpy sums a 2-D axis in a layout-dependent
+        # order, which would make a sensor's GP depend on how many columns sit beside it
+        self.y_mean_ = np.array([u[:, s].mean() for s in range(u.shape[1])])
+        std = np.array([u[:, s].std() for s in range(u.shape[1])])
         std[std < _TINY] = 1.0
         self.y_std_ = std
         z = (u - self.y_mean_) / self.y_std_
@@ -86,6 +96,7 @@ class ResponseSurrogate:
                 alpha=self.gp_jitter,
                 normalize_y=False,
                 n_restarts_optimizer=self.n_restarts,
+                random_state=self.random_state,
             )
             gp.fit(t, z[:, s])
             self.gps_.append(gp)
@@ -124,6 +135,9 @@ class ResponseSurrogate:
             "e_min_Pa": self.e_min,
             "e_max_Pa": self.e_max,
             "gp_jitter": self.gp_jitter,
+            "random_state": self.random_state,
+            "sensor_names": self.sensor_names,
+            "sensor_data_file": self.sensor_data_file,
             "kernels": [str(g.kernel_) for g in self.gps_],
             "versions": {
                 "python": platform.python_version(),
@@ -140,7 +154,12 @@ class ResponseSurrogate:
 
     @staticmethod
     def load(path):
-        return joblib.load(path)
+        surrogate = joblib.load(path)
+        # surrogates saved before these attributes existed
+        for name in ("sensor_names", "sensor_data_file", "random_state"):
+            if not hasattr(surrogate, name):
+                setattr(surrogate, name, None)
+        return surrogate
 
 
 class InterpBaseline:

@@ -12,7 +12,8 @@
     },
     "gp": {
         "gp_jitter": 1e-10,
-        "n_restarts_optimizer": 8
+        "n_restarts_optimizer": 8,
+        "random_state": 20260911
     },
     "accuracy_gate": {
         "sigma_noise_m": [3.788097e-08],
