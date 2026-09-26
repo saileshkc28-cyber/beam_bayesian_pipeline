@@ -249,7 +249,9 @@ def run_case(case_name, z, weight, measured_file, case_output_dir,
     summary.update({
         "case_name": case_name, "status": "ok",
         "z_value": float(z), "weight": float(weight),
-        "measurement": float(u_hat[0]),
+        "n_sensors": n_sensors,
+        "sensor_names": [s["name"] for s in forward_sensor_metadata(parameters["forward_model"])],
+        "measurement": u_hat.tolist(),
         "measurement_noise_sigma": float(sigma_noise),
         "number_of_posterior_samples": int(alpha_samples.size),
         "number_of_forward_solves": int(analysis.forward_model.n_solves),
@@ -605,7 +607,7 @@ def RunThreePoint(project_parameters):
             print(f"\n[{j + 1}/3] {name}: resumed from disk")
         else:
             print(f"\n[{j + 1}/3] {name}: alpha_true = {alpha_points[j]:.10f}, "
-                  f"u = {u_hat[j, 0]:.10e}, seed {seed}", flush=True)
+                  f"u = [{', '.join(f'{v:.6e}' for v in u_hat[j])}], seed {seed}", flush=True)
             t0 = time.time()
             try:
                 summary = run_case(name, Z_VALUES[j], WEIGHTS[j], measured_files[j],
@@ -625,7 +627,7 @@ def RunThreePoint(project_parameters):
         summary["case_output_dir"] = case_output_dir
         summary["alpha_true"] = float(alpha_points[j])
         summary["E_true"] = float(E_points[j])
-        summary["u_true"] = float(u_true[j, 0])
+        summary["u_true"] = u_true[j].tolist()
         cases.append(summary)
 
     ok = [c for c in cases if c["status"] == "ok"]
@@ -643,7 +645,9 @@ def RunThreePoint(project_parameters):
         writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
         writer.writeheader()
         for c in cases:
-            writer.writerow(c)
+            # sensor vectors go in as one JSON list string per cell
+            writer.writerow({k: json.dumps(v) if isinstance(v, list) else v
+                             for k, v in c.items()})
 
     if len(ok) < 3:
         print(f"\n{3 - len(ok)} of 3 cases failed; combination skipped.")
@@ -674,6 +678,8 @@ def RunThreePoint(project_parameters):
         "measurement_generation": generation_mode,
         "measurement_noise_sigma": sigma_noise,
         "cases": [c["case_name"] for c in ok],
+        "n_sensors": len(sensors),
+        "sensor_names": [s["name"] for s in sensors],
         "weights": weights.tolist(),
         "z_values": Z_VALUES.tolist(),
         "alpha_true": [c["alpha_true"] for c in ok],
