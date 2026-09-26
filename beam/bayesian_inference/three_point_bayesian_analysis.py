@@ -468,7 +468,17 @@ def make_plots(cases, combined_alpha, stats, target, output_dir, E_ref):
 
 
 # ------------------------------------------------------------------------ controller
-def apply_cli_overrides(settings):
+def flag_value(argv, flag):
+    """The argument after `flag`, or None if the flag is absent."""
+    if flag not in argv:
+        return None
+    i = argv.index(flag)
+    if i + 1 >= len(argv) or argv[i + 1].startswith("--"):
+        raise ValueError(f"{flag} needs a value")
+    return argv[i + 1]
+
+
+def apply_cli_overrides(settings, project_parameters):
     argv = sys.argv[1:]
     if "--dry-run" in argv:
         settings["dry_run"].SetBool(True)
@@ -477,11 +487,25 @@ def apply_cli_overrides(settings):
     if "--resume" in argv:
         settings["resume"].SetBool(True)
 
+    # the forward_model block is shared by measurement generation and by every
+    # inversion, so one override here moves both onto the same sensor file
+    sensor_file = flag_value(argv, "--sensor-file")
+    if sensor_file is not None:
+        project_parameters["forward_model"]["sensor_data_file"].SetString(sensor_file)
+    for flag, key in (("--input-path", "input_path"), ("--output-path", "output_path")):
+        path = flag_value(argv, flag)
+        if path is not None:
+            settings[key].SetString(path)
+
 
 def RunThreePoint(project_parameters):
     settings = project_parameters["three_point_inference"]
     settings.ValidateAndAssignDefaults(GetDefaultParameters())
-    apply_cli_overrides(settings)
+    # fill sensor_data_file from the forward model's defaults if the JSON omits it,
+    # so the override below and forward_sensor_metadata always find the key
+    project_parameters["forward_model"].ValidateAndAssignDefaults(
+        KratosForwardModel.GetDefaultParameters())
+    apply_cli_overrides(settings, project_parameters)
 
     support_space = settings["support_space"].GetString()
     if support_space != "alpha":
@@ -506,6 +530,15 @@ def RunThreePoint(project_parameters):
 
     alpha_points, wm, wsd = build_alpha_points(alpha_mean, alpha_std)
     E_points = alpha_points * E_ref
+
+    sensor_file = project_parameters["forward_model"]["sensor_data_file"].GetString()
+    sensor_names = [s["name"] for s in forward_sensor_metadata(project_parameters["forward_model"])]
+    if not sensor_names:
+        raise ValueError(f"sensor file {sensor_file} lists no sensors")
+    print(f"\nsensor file       : {os.path.abspath(sensor_file)}")
+    print(f"sensors           : {len(sensor_names)}  {', '.join(sensor_names)}")
+    print(f"input path        : {os.path.abspath(input_root)}")
+    print(f"output path       : {os.path.abspath(output_root)}")
 
     print(f"\nsupport space     : {support_space} (parameter space)")
     print(f"alpha ~ N({alpha_mean}, {alpha_std})   E_ref = {E_ref:.6e} Pa\n")
