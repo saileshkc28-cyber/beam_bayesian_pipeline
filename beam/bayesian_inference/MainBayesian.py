@@ -1,3 +1,5 @@
+import sys
+
 import KratosMultiphysics as Kratos
 from bayesian_analysis import BayesianAnalysis
 
@@ -10,7 +12,11 @@ def _enabled(parameters, block):
 
 if __name__ == "__main__":
 
-    with open("BayesianParameters.json", "r") as file_input:
+    # optional config path as the first argument; anything starting with -- is one of
+    # the three-point flags (--dry-run, --sensor-file, ...), read later from sys.argv
+    config = (sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--")
+              else "BayesianParameters.json")
+    with open(config, "r") as file_input:
         parameters = Kratos.Parameters(file_input.read())
 
     three_point = _enabled(parameters, "three_point_inference")
