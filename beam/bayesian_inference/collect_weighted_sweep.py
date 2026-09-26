@@ -21,11 +21,16 @@ scaling cancels, so N_eff is the same for all three points). Two levels are repo
 Every alpha is also given as E = alpha * E_ref [GPa], E_ref from run_info.json
 (206.9 GPa).
 
-Writes results.csv, weighted_information.png and weighted_population.png.
+Writes results.csv, weighted_results.xlsx (sheets Population, Posterior SD, Per point,
+Raw = results.csv, Info; needs openpyxl, skipped with a message otherwise),
+weighted_information.png, weighted_population.png and weighted_posterior_alpha.png
+(per run: the three point posteriors from point_*/posterior_samples.npz and the
+weighted mixture from combined/combined_posterior_samples.npz).
 """
 import csv
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import matplotlib
@@ -33,6 +38,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 
 ARCHIVE = Path(sys.argv[1] if len(sys.argv) > 1
                else r"D:\KratosProjects\MCMC\Analysis\sensors_weighted")
@@ -44,6 +50,7 @@ EDGE = "#1f3b57"
 TRUTH = "#d62728"
 MIX = "#2ca02c"
 NAIVE = "#d85a30"
+BOX = "#5b7c99"
 POINTS = {"point_1_low": "#2a78d6", "point_2_central": EDGE, "point_3_high": "#9467bd"}
 
 FIELDS = ["run", "label", "n_sensors", "stations", "n_eff", "sigma_assumed", "e_ref_GPa",
@@ -63,6 +70,14 @@ SKIPPED = []
 def read_csv(path):
     with open(path, newline="") as f:
         return list(csv.DictReader(f))
+
+
+def alpha_samples(path):
+    """The 'alpha' array of a posterior npz, or None if it is missing."""
+    if not path.exists():
+        return None
+    with np.load(path) as z:
+        return np.asarray(z["alpha"], dtype=float) if "alpha" in z.files else None
 
 
 def collect(folder):
@@ -113,6 +128,7 @@ def collect(folder):
             "z": (m - a) / s,
             "covers": lo <= a <= hi,
             "n_forward_solves": int(r["number_of_forward_solves"]),
+            "_samples": alpha_samples(folder / r["case_name"] / "posterior_samples.npz"),
         })
 
     mu = combined["alpha_recovered_mean"]
@@ -140,6 +156,7 @@ def collect(folder):
         "total_forward_solves": combined["total_forward_solves"],
         "wall_time_s": info.get("wall_time_s"),
         "points": points,
+        "_mixture": alpha_samples(folder / "combined" / "combined_posterior_samples.npz"),
     }
 
 
@@ -261,6 +278,241 @@ def figure_population(runs, out):
     save(fig, out)
 
 
+def figure_posterior(runs, out):
+    """One row per run: the three point boxes share one line (their alphas do not
+    overlap), the thicker weighted-mixture box sits below them."""
+    rng = np.random.default_rng(0)
+    have = (all(p["_samples"] is not None for r in runs for p in r["points"])
+            and all(r["_mixture"] is not None for r in runs))
+
+    def point_data(p):
+        return (p["_samples"] if p["_samples"] is not None
+                else rng.normal(p["alpha_mean"], p["alpha_std"], 4000))
+
+    def mixture_data(r):
+        if r["_mixture"] is not None:
+            return r["_mixture"]
+        w = np.array([p["weight"] for p in r["points"]])
+        counts = rng.multinomial(20000, w / w.sum())
+        return np.concatenate([rng.normal(p["alpha_mean"], p["alpha_std"], c)
+                               for p, c in zip(r["points"], counts)])
+
+    target_m, target_s = runs[0]["alpha_target_mean"], runs[0]["alpha_target_sd"]
+    e_ref = runs[0]["e_ref_GPa"]
+    truths = {p["case"]: p["alpha_true"] for r in runs for p in r["points"]}
+    pos = np.arange(len(runs), dtype=float)
+    style = dict(vert=False, patch_artist=True, showfliers=False, whis=(2.5, 97.5),
+                 manage_ticks=False, whiskerprops=dict(color=EDGE, lw=1.1),
+                 capprops=dict(color=EDGE, lw=1.1))
+
+    fig, ax = plt.subplots(figsize=(11, 2.0 + 1.6 * len(runs)))
+    data = []
+    for y, r in zip(pos, runs):
+        for p in r["points"]:
+            d = point_data(p)
+            data.append(d)
+            ax.boxplot([d], positions=[y + 0.17], widths=0.14,
+                       medianprops=dict(color="white", lw=1.4),
+                       boxprops=dict(facecolor=POINTS.get(p["case"], BOX), edgecolor=EDGE,
+                                     alpha=0.85, lw=1.0), **style)
+        d = mixture_data(r)
+        data.append(d)
+        ax.boxplot([d], positions=[y - 0.14], widths=0.30,
+                   medianprops=dict(color=EDGE, lw=2),
+                   boxprops=dict(facecolor=BOX, edgecolor=EDGE, alpha=0.75, lw=1.2), **style)
+        ax.errorbar(r["alpha_recovered_mean"], y - 0.40, xerr=r["alpha_between_case_sd"],
+                    fmt="D", mfc="white", mec=EDGE, ecolor=EDGE, ms=6, capsize=3, zorder=5)
+
+    for case, a in truths.items():
+        ax.axvline(a, color=POINTS.get(case, EDGE), ls=":", lw=1.5, zorder=1)
+    ax.axvline(target_m, color=TRUTH, ls="--", lw=1.8, zorder=2)
+
+    lo = min(min(np.percentile(d, 2.5) for d in data),
+             min(r["alpha_recovered_mean"] - r["alpha_between_case_sd"] for r in runs))
+    hi = max(max(np.percentile(d, 97.5) for d in data),
+             max(r["alpha_recovered_mean"] + r["alpha_between_case_sd"] for r in runs))
+    span = hi - lo
+    ax.set_xlim(lo - 0.05 * span, hi + 0.62 * span)
+    for y, r in zip(pos, runs):
+        ax.text(hi + 0.03 * span, y - 0.08,
+                f"$\\alpha$  {r['alpha_recovered_mean']:.4f} $\\pm$ "
+                f"{r['alpha_between_case_sd']:.4f}\n"
+                f"E  {r['E_recovered_mean_GPa']:.2f} $\\pm$ "
+                f"{r['E_between_case_sd_GPa']:.2f} GPa\n"
+                f"error vs target: mean {r['err_mean_pct']:+.2f}%, "
+                f"SD {r['err_between_sd_pct']:+.2f}%",
+                va="center", ha="left", fontsize=8.5, color=EDGE, linespacing=1.4)
+
+    ax.set_yticks(pos)
+    ax.set_yticklabels([f"{r['n_sensors']} sensor{'s' if r['n_sensors'] > 1 else ''}"
+                        + ("" if r["n_eff"] is None else f"   $N_{{eff}}$ = {r['n_eff']:.2f}")
+                        for r in runs])
+    ax.set_ylim(pos[0] - 0.65, pos[-1] + 0.5)
+    ax.set_ylabel("sensor count")
+    ax.set_xlabel(r"$\alpha = E / E_{ref}$")
+    sec = ax.secondary_xaxis("top", functions=(lambda a: a * e_ref, lambda e: e / e_ref))
+    sec.set_xlabel(f"E  [GPa]   (E_ref = {e_ref:g} GPa)", fontsize=9)
+    ax.set_title(f"Weighted three-point posteriors vs. sensor count   |   "
+                 f"sigma {SIGMA:.4e} per sensor", fontsize=12, pad=40)
+    ax.grid(axis="x", alpha=0.25)
+    ax.legend(handles=[
+        *[Patch(facecolor=color, edgecolor=EDGE, alpha=0.85,
+                label=f"{case}  (true $\\alpha$ {truths[case]:.4f}, dotted)")
+          for case, color in POINTS.items() if case in truths],
+        Patch(facecolor=BOX, edgecolor=EDGE, alpha=0.75, label="weighted mixture"),
+        Line2D([], [], color=TRUTH, ls="--", lw=1.8,
+               label=f"target mean  {target_m:.4f}  ({target_m * e_ref:.2f} GPa)"),
+        Line2D([], [], marker="D", color=EDGE, mfc="white", mec=EDGE, ms=6,
+               label=r"recovered mean $\pm$ between-case SD"
+                     f"  (target SD {target_s:.4f})"),
+    ], loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=2, fontsize=9, frameon=False)
+
+    note = ("boxes from posterior samples (2.5-97.5% whiskers)" if have
+            else "some boxes Gaussian-implied from case_summary.csv (samples missing)")
+    fig.text(0.5, -0.12, note, ha="center", fontsize=8, color="grey", style="italic")
+    save(fig, out)
+
+
+ALPHA, GPA, PCT, RATIO, NUM2, INT, SCI = ("0.0000", "0.00", "0.00", "0.000", "0.00", "0",
+                                          "0.000E+00")
+
+
+def raw_format(name):
+    """Number format of a results.csv column in the Raw sheet."""
+    if "GPa" in name or name.endswith("_pct") or name in ("n_eff", "z"):
+        return NUM2
+    if name in ("sd_ratio", "sd_pred_ratio"):
+        return RATIO
+    if name.startswith("alpha") or name in ("z_value", "weight"):
+        return ALPHA
+    if name == "sigma_assumed":
+        return SCI
+    if name in ("n_sensors", "n_forward_solves", "total_forward_solves", "wall_time_s"):
+        return INT
+    return None
+
+
+def shown(value, fmt):
+    """Roughly what Excel displays, for the column width."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "FALSE"
+    if isinstance(value, float) and fmt and "E" not in fmt:
+        return f"{value:.{len(fmt.split('.')[1]) if '.' in fmt else 0}f}"
+    if isinstance(value, float) and fmt:
+        return f"{value:.3e}"
+    return str(value)
+
+
+def fill_sheet(ws, headers, rows, formats, font):
+    """Bold frozen header, one number format per column, widths from the content."""
+    ws.append(headers)
+    for row in rows:
+        ws.append(row)
+    for cell in ws[1]:
+        cell.font = font
+    ws.freeze_panes = "A2"
+    for j, (header, fmt) in enumerate(zip(headers, formats), 1):
+        column = [row[j - 1] for row in rows]
+        if fmt:
+            for i, value in enumerate(column, 2):
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    ws.cell(i, j).number_format = fmt
+        width = max([len(str(header))] + [len(shown(v, fmt)) for v in column])
+        ws.column_dimensions[ws.cell(1, j).column_letter].width = min(width + 2, 60)
+
+
+def write_excel(runs, base, csv_rows, path):
+    """weighted_results.xlsx; returns True if written."""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+    except ImportError:
+        print(f"openpyxl is not installed -- {path.name} skipped "
+              f"(install it with: {sys.executable} -m pip install openpyxl)")
+        return False
+
+    bold = Font(bold=True)
+    target_m, target_s = base["alpha_target_mean"], base["alpha_target_sd"]
+    e_ref = base["e_ref_GPa"]
+    cases = list(POINTS)
+    wb = Workbook()
+
+    ws = wb.active
+    ws.title = "Population"
+    headers = ["run", "sensors", "N_eff", "alpha mean", "alpha between-case SD",
+               "alpha mixture SD", "E mean [GPa]", "E between-case SD [GPa]",
+               "E mixture SD [GPa]", "error mean %", "error between SD %",
+               "error mixture SD %", "forward solves", "wall time [s]"]
+    rows = [[r["label"], r["n_sensors"], r["n_eff"], r["alpha_recovered_mean"],
+             r["alpha_between_case_sd"], r["alpha_total_mixture_sd"],
+             r["E_recovered_mean_GPa"], r["E_between_case_sd_GPa"],
+             r["E_total_mixture_sd_GPa"], r["err_mean_pct"], r["err_between_sd_pct"],
+             r["err_mixture_sd_pct"], r["total_forward_solves"], r["wall_time_s"]]
+            for r in runs]
+    rows.append(["Target", None, None, target_m, target_s, None, target_m * e_ref,
+                 target_s * e_ref, None, None, None, None, None, None])
+    fill_sheet(ws, headers, rows, [None, INT, NUM2, ALPHA, ALPHA, ALPHA, GPA, GPA, GPA,
+                                   PCT, PCT, PCT, INT, INT], bold)
+
+    ws = wb.create_sheet("Posterior SD")
+    ref = base["label"]
+    headers = (["run", "sensors", "N_eff"]
+               + [f"SD {c.split('_')[-1]}" for c in cases]
+               + [f"{c.split('_')[-1]} / {ref}" for c in cases]
+               + [f"Fisher sqrt(N_eff_{ref} / N_eff)"])
+    rows = []
+    for r in runs:
+        by_case = {p["case"]: p for p in r["points"]}
+        rows.append([r["label"], r["n_sensors"], r["n_eff"]]
+                    + [by_case[c]["alpha_std"] if c in by_case else None for c in cases]
+                    + [by_case[c]["sd_ratio"] if c in by_case else None for c in cases]
+                    + [next((p["sd_pred_ratio"] for p in r["points"]), None)])
+    fill_sheet(ws, headers, rows, [None, INT, NUM2] + [ALPHA] * 3 + [RATIO] * 4, bold)
+
+    ws = wb.create_sheet("Per point")
+    headers = ["run", "sensors", "point", "alpha_true", "E_true [GPa]",
+               "alpha mean", "alpha SD", "alpha 2.5%", "alpha 97.5%",
+               "E mean [GPa]", "E SD [GPa]", "E 2.5% [GPa]", "E 97.5% [GPa]",
+               "bias %", "z", "covers"]
+    rows = [[r["label"], r["n_sensors"], p["case"], p["alpha_true"], p["E_true_GPa"],
+             p["alpha_mean"], p["alpha_std"], p["alpha_p2.5"], p["alpha_p97.5"],
+             p["E_mean_GPa"], p["E_std_GPa"], p["E_p2.5_GPa"], p["E_p97.5_GPa"],
+             p["bias_pct"], p["z"], bool(p["covers"])]
+            for r in runs for p in r["points"]]
+    fill_sheet(ws, headers, rows, [None, INT, None, ALPHA, GPA] + [ALPHA] * 4 + [GPA] * 4
+               + [PCT, NUM2, None], bold)
+
+    ws = wb.create_sheet("Raw")
+    fill_sheet(ws, FIELDS, [[row[k] for k in FIELDS] for row in csv_rows],
+               [raw_format(k) for k in FIELDS], bold)
+
+    ws = wb.create_sheet("Info")
+    sigmas = sorted({r["sigma_assumed"] for r in runs})
+    rows = [["archive", str(ARCHIVE)],
+            ["collected", datetime.now().isoformat(timespec="seconds")],
+            ["sigma per sensor [m]", sigmas[0] if len(sigmas) == 1
+             else ", ".join(f"{s:.4e}" for s in sigmas)],
+            ["E_ref [GPa]", e_ref],
+            ["target alpha", f"N({target_m:.4f}, {target_s:.4f})"],
+            ["target E [GPa]", f"N({target_m * e_ref:.2f}, {target_s * e_ref:.2f})"]]
+    rows += [[p["case"], f"z = {p['z_value']:+.4f}   weight = {p['weight']:.4f}   "
+                         f"alpha = {p['alpha_true']:.4f}   E = {p['E_true_GPa']:.2f} GPa"]
+             for p in base["points"]]
+    rows += [[f"stations {r['label']}", r["stations"]] for r in runs]
+    fill_sheet(ws, ["item", "value"], rows, [None, None], bold)
+    ws["B4"].number_format = SCI        # row 1 is the header
+    ws["B5"].number_format = GPA
+
+    try:
+        wb.save(path)
+    except PermissionError:
+        print(f"close {path} (probably open in Excel) and run again")
+        return False
+    return True
+
+
 def main():
     if not ARCHIVE.exists():
         sys.exit(f"no such archive: {ARCHIVE}")
@@ -298,14 +550,20 @@ def main():
             p["sd_ratio"] = p["alpha_std"] / base_sd[p["case"]] if p["case"] in base_sd else None
             p["sd_pred_ratio"] = pred
 
+    csv_rows = [{k: {**r, **p}[k] for k in FIELDS} for r in runs for p in r["points"]]
     out = ARCHIVE / "results.csv"
-    with open(out, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDS)
-        writer.writeheader()
-        for r in runs:
-            for p in r["points"]:
-                row = {**r, **p}
-                writer.writerow({k: row[k] for k in FIELDS})
+    xlsx = ARCHIVE / "weighted_results.xlsx"
+    written = []
+    try:
+        with open(out, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=FIELDS)
+            writer.writeheader()
+            writer.writerows(csv_rows)
+        written.append(out)
+    except PermissionError:
+        print(f"close {out} (probably open in Excel) and run again")
+    if write_excel(runs, base, csv_rows, xlsx):
+        written.append(xlsx)
 
     target_m, target_s = base["alpha_target_mean"], base["alpha_target_sd"]
     e_ref = base["e_ref_GPa"]
@@ -332,9 +590,10 @@ def main():
                   f"{'y' if p['covers'] else 'N':>5}{num(p['sd_ratio'], '>8.3f'):>8}"
                   f"{num(p['sd_pred_ratio'], '>7.3f'):>7}")
 
+    target_e_m, target_e_s = target_m * e_ref, target_s * e_ref
     header = (f"{'run':<6}{'k':>4}{'mean':>9}{'err%':>8}{'between sd':>12}{'err%':>8}"
-              f"{'mixture sd':>12}{'err%':>8}{'E [GPa]':>10}{'betw GPa':>10}{'mix GPa':>9}"
-              f"{'solves':>8}{'time_s':>8}")
+              f"{'mixture sd':>12}{'err%':>8}{'E [GPa]':>10}{'target':>8}{'E sd GPa':>10}"
+              f"{'target':>8}{'E mix GPa':>11}{'solves':>8}{'time_s':>8}")
     print(f"\npopulation   (target mean {target_m:.4f}, sd {target_s:.4f}; "
           f"between-case sd is the population sd)")
     print(header)
@@ -344,8 +603,14 @@ def main():
               f"{r['err_mean_pct']:>8.2f}{r['alpha_between_case_sd']:>12.4f}"
               f"{r['err_between_sd_pct']:>8.2f}{r['alpha_total_mixture_sd']:>12.4f}"
               f"{r['err_mixture_sd_pct']:>8.2f}{r['E_recovered_mean_GPa']:>10.2f}"
-              f"{r['E_between_case_sd_GPa']:>10.2f}{r['E_total_mixture_sd_GPa']:>9.2f}"
+              f"{target_e_m:>8.2f}{r['E_between_case_sd_GPa']:>10.2f}{target_e_s:>8.2f}"
+              f"{r['E_total_mixture_sd_GPa']:>11.2f}"
               f"{r['total_forward_solves']:>8}{num(r['wall_time_s'], '>8.0f'):>8}")
+    print()
+    for r in runs:
+        print(f"{r['label']}: E = {r['E_recovered_mean_GPa']:.2f} +- "
+              f"{r['E_between_case_sd_GPa']:.2f} GPa  "
+              f"(target {target_e_m:.2f} +- {target_e_s:.2f})")
 
     last = runs[-1]
     if last["n_eff"] is not None:
@@ -362,8 +627,11 @@ def main():
 
     figure_information(runs, ARCHIVE / "weighted_information.png")
     figure_population(runs, ARCHIVE / "weighted_population.png")
-    print(f"\nwrote {out}\n      {ARCHIVE / 'weighted_information.png'}"
-          f"\n      {ARCHIVE / 'weighted_population.png'}")
+    figure_posterior(runs, ARCHIVE / "weighted_posterior_alpha.png")
+    written += [ARCHIVE / name for name in ("weighted_information.png",
+                                             "weighted_population.png",
+                                             "weighted_posterior_alpha.png")]
+    print("\nwrote " + "\n      ".join(str(p) for p in written))
 
 
 if __name__ == "__main__":
