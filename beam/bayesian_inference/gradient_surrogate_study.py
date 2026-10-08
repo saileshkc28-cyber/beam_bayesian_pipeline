@@ -5,6 +5,7 @@ Kratos) and compares, for growing equally spaced training subsets:
     a. ResponseSurrogate  -- the existing GP, values only
     b. InterpBaseline     -- the existing PCHIP, values only
     c. cubic Hermite      -- values u plus slopes du/dt = -u, per sensor in t
+    d. GradientEnhancedGP -- Matern 5/2 GP on values u plus slopes du/dt = -u
 plus one "analytic" reference row: u(E) = u0 * E0 / E from a single solve.
 
 t = ln(E / e_scale), as in ResponseSurrogate.t_of. For a linear elastic model
@@ -25,10 +26,12 @@ from scipy.interpolate import CubicHermiteSpline
 
 # BuildSurrogate.py imports Kratos only inside build_forward_model, so this is safe
 from BuildSurrogate import load_done
+from gradient_gp import GradientEnhancedGP
 from response_surrogate import InterpBaseline, ResponseSurrogate, error_report
 
 SUBSET_SIZES = (2, 3, 4, 5, 7, 9, 13, 25)
-MODELS = (("gp", "GP"), ("pchip", "PCHIP"), ("hermite", "Hermite"), ("analytic", "analytic"))
+MODELS = (("gp", "GP"), ("pchip", "PCHIP"), ("hermite", "Hermite"),
+          ("gp_slope", "GP+slope"), ("analytic", "analytic"))
 
 
 # --------------------------------------------------------------------------
@@ -153,7 +156,7 @@ def main():
         e_s, u_s = e_tr[idx], u_tr[idx]
         print(f"\nn = {n:2d}: training indices {idx.tolist()}")
 
-        # 4. fit the three models on the subset; 6. score them at the validation E
+        # 4. fit the four models on the subset; 6. score them at the validation E
         def gp_fp(e):
             return ResponseSurrogate(d["e_scale_Pa"], d["e_min_Pa"], d["e_max_Pa"],
                                      gp_jitter=g["gp_jitter"],
@@ -167,10 +170,21 @@ def main():
         def hermite_fp(e):
             return HermiteInT(d["e_scale_Pa"]).fit(e_s, u_s).predict(e)
 
+        fitted = {}  # keeps the GP+slope model so its ell_ can be printed
+
+        def gp_slope_fp(e):
+            # slopes du/dt = -u, as for the Hermite spline
+            fitted["gp_slope"] = GradientEnhancedGP(d["e_scale_Pa"]).fit(e_s, u_s, -u_s)
+            return fitted["gp_slope"].predict(e)
+
         rows.append({"row": "subset", "n": n,
                      "gp": score(gp_fp, e_va, u_va, sigma, "GP"),
                      "pchip": score(pchip_fp, e_va, u_va, sigma, "PCHIP"),
-                     "hermite": score(hermite_fp, e_va, u_va, sigma, "Hermite")})
+                     "hermite": score(hermite_fp, e_va, u_va, sigma, "Hermite"),
+                     "gp_slope": score(gp_slope_fp, e_va, u_va, sigma, "GP+slope")})
+        gpm = fitted.get("gp_slope")
+        print("  GP+slope ell_: " + (" ".join(f"{v:.3g}" for v in gpm.ell_)
+                                     if gpm is not None else "n/a (fit failed)"))
 
     # 5. analytic reference: one training solve, the one closest to E_ref.
     #    Without Kratos, E_ref is taken from the config's analytic_check_model block.
