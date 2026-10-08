@@ -1,0 +1,209 @@
+{
+  "method": "adjoint gauss_newton + Laplace",
+  "mode": "gauss_hermite",
+  "parameter_names": [
+    "mu_alpha_1",
+    "sigma_alpha_1"
+  ],
+  "converged": true,
+  "stop_reason": "newton_decrement",
+  "iterations": 3,
+  "n_forward_solves": 13,
+  "n_adjoint_solves": 14,
+  "startup_checks": {
+    "alpha": [
+      1.0
+    ],
+    "sensor_value_rel_diff": 0.0,
+    "homogeneity_ratio": [
+      1.0000000041607073
+    ],
+    "homogeneity_status": "ok",
+    "misfit_gradient_rel_diff": 5.895920331542299e-16,
+    "sensitivity_sign": -1.0
+  },
+  "data": {
+    "file": "../damaged_system/phase1_distribution_runs/measured_data_collapsed.csv",
+    "sensors": [
+      "disp_y_tip"
+    ],
+    "mean": [
+      -1.916653425973606e-06
+    ],
+    "std": [
+      1.9236492411405053e-07
+    ],
+    "n_samples": 983.0,
+    "sensor_noise_sigma": 3.788e-08
+  },
+  "population": [
+    {
+      "zone": 1,
+      "name": "alpha_1",
+      "mu_alpha": 0.9975167737132836,
+      "mu_alpha_std": 0.003279060091159529,
+      "sigma_alpha": 0.09548575995779869,
+      "sigma_alpha_std": 0.0022466118053840376,
+      "corr_mu_sigma": 0.3903491286604196,
+      "E_ref_Pa": 206900000000.0,
+      "mu_E_Pa": 206386220481.27838,
+      "mu_E_std_Pa": 678437532.8609066,
+      "sigma_E_Pa": 19756003735.26855,
+      "sigma_E_std_Pa": 464823982.53395736
+    }
+  ],
+  "laplace": {
+    "map": [
+      0.9975167737132836,
+      0.09548575995779869
+    ],
+    "std": [
+      0.003279060091159529,
+      0.0022466118053840376
+    ],
+    "covariance": [
+      [
+        1.0752235081435138e-05,
+        2.8756142457576785e-06
+      ],
+      [
+        2.8756142457576785e-06,
+        5.047264604090925e-06
+      ]
+    ],
+    "correlation": [
+      [
+        0.9999999999999999,
+        0.3903491286604196
+      ],
+      [
+        0.3903491286604196,
+        1.0
+      ]
+    ],
+    "hessian_eigenvalues": [
+      83680.88200278033,
+      259784.8728621283
+    ],
+    "condition_number": 3.1044710170896246,
+    "gradient_norm": 0.0005921177346263997,
+    "newton_decrement": 1.3522603806313644e-12,
+    "fraction_outside_prior": 0.0,
+    "warnings": []
+  },
+  "fit": {
+    "gauss_hermite_alphas": [
+      [
+        0.8321305860670505
+      ],
+      [
+        0.9975167737132836
+      ],
+      [
+        1.1629029613595168
+      ]
+    ],
+    "gauss_hermite_u": [
+      [
+        -2.276143057830639e-06
+      ],
+      [
+        -1.8987633156608542e-06
+      ],
+      [
+        -1.6287242526830515e-06
+      ]
+    ],
+    "gauss_hermite_weights": [
+      0.1666666666666666,
+      0.6666666666666669,
+      0.1666666666666666
+    ],
+    "u_mean_predicted": [
+      -1.916653428859518e-06
+    ],
+    "u_mean_data": [
+      -1.916653425973606e-06
+    ],
+    "u_std_predicted": [
+      1.9236492873030714e-07
+    ],
+    "u_std_data": [
+      1.9236492411405053e-07
+    ],
+    "residual": [
+      -4.703638692023589e-07,
+      1.063493399688193e-06
+    ]
+  },
+  "validation": {
+    "alpha_mean": 0.9977910163848607,
+    "alpha_sd": 0.09613391068830907,
+    "note": "Phase 1 alpha statistics, read after the run for comparison only; never used in the inference",
+    "rel_error_mean": -0.00027484981030467814,
+    "rel_error_sd": -0.006742165442658932
+  },
+  "settings": {
+    "mode": "gauss_hermite",
+    "adjoint_parameters_file": "AdjointParametersBayes.json",
+    "element_name": "ShellThinElement3D3N",
+    "measured_data_file": "../damaged_system/phase1_distribution_runs/measured_data_collapsed.csv",
+    "noise_model_file": "../damaged_system/phase1_distribution_runs/noise_model_collapsed.json",
+    "u_mean": {
+      "initial_guess": [
+        1.0
+      ],
+      "sigma_key": "sigma",
+      "sigma_override": 0.0
+    },
+    "gauss_hermite": {
+      "order": 3,
+      "initial_mean": [
+        1.0
+      ],
+      "initial_std": [
+        0.05
+      ],
+      "std_prior": {
+        "parameters": [
+          0.0001,
+          0.5
+        ],
+        "type": "uniform"
+      },
+      "match": [
+        "mean",
+        "std"
+      ],
+      "sensor_noise_sigma_key": "sigma_options.sensor_noise",
+      "min_node_alpha": 0.05
+    },
+    "optimizer": {
+      "type": "gauss_newton",
+      "max_iterations": 50,
+      "decrement_tolerance": 1e-10,
+      "step_tolerance": 1e-10,
+      "objective_rel_tolerance": 1e-12,
+      "max_backtracking": 20,
+      "bb_settings": {
+        "init_step": 0.01,
+        "max_step": 0.1,
+        "gradient_scaling": "l2_norm"
+      }
+    },
+    "checks": {
+      "run_startup_checks": true,
+      "homogeneity_tolerance": 0.0001,
+      "sensor_value_tolerance": 1e-08,
+      "gradient_tolerance": 1e-06
+    },
+    "laplace": {
+      "n_samples": 100000,
+      "random_seed": 20260802
+    },
+    "validation_reference_file": "../damaged_system/phase1_distribution_runs/phase1_response_summary.json",
+    "output_path": "output_adjoint_laplace",
+    "write_excel": true,
+    "make_plots": true
+  }
+}

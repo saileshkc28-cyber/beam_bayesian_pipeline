@@ -1,0 +1,70 @@
+{
+    "problem_data": {
+        "problem_name": "adjoint_laplace_beam",
+        "echo_level": 1
+    },
+    "base_parameters_file": "BayesianParameters.json",
+    "adjoint_laplace_inference": {
+        "mode": "gauss_hermite",
+        "adjoint_parameters_file": "AdjointParametersBayes.json",
+        "element_name": "ShellThinElement3D3N",
+        "measured_data_file": "../damaged_system/phase1_distribution_runs/measured_data_collapsed.csv",
+        "noise_model_file": "../damaged_system/phase1_distribution_runs/noise_model_collapsed.json",
+        "u_mean": {
+            "initial_guess": [
+                1.0
+            ],
+            "sigma_key": "sigma",
+            "sigma_override": 0.0
+        },
+        "gauss_hermite": {
+            "order": 3,
+            "initial_mean": [
+                1.0
+            ],
+            "initial_std": [
+                0.05
+            ],
+            "std_prior": {
+                "type": "uniform",
+                "parameters": [
+                    0.0001,
+                    0.5
+                ]
+            },
+            "match": [
+                "mean",
+                "std"
+            ],
+            "sensor_noise_sigma_key": "sigma_options.sensor_noise",
+            "min_node_alpha": 0.05
+        },
+        "optimizer": {
+            "type": "gauss_newton",
+            "max_iterations": 50,
+            "decrement_tolerance": 1e-10,
+            "step_tolerance": 1e-10,
+            "objective_rel_tolerance": 1e-12,
+            "max_backtracking": 20,
+            "bb_settings": {
+                "init_step": 0.01,
+                "max_step": 0.1,
+                "gradient_scaling": "l2_norm"
+            }
+        },
+        "checks": {
+            "run_startup_checks": true,
+            "homogeneity_tolerance": 0.0001,
+            "sensor_value_tolerance": 1e-08,
+            "gradient_tolerance": 1e-06
+        },
+        "laplace": {
+            "n_samples": 100000,
+            "random_seed": 20260802
+        },
+        "validation_reference_file": "../damaged_system/phase1_distribution_runs/phase1_response_summary.json",
+        "output_path": "output_adjoint_laplace",
+        "write_excel": true,
+        "make_plots": true
+    }
+}

@@ -1,0 +1,154 @@
+{
+  "method": "adjoint gauss_newton + Laplace",
+  "mode": "u_mean",
+  "parameter_names": [
+    "alpha_1"
+  ],
+  "converged": true,
+  "stop_reason": "newton_decrement",
+  "iterations": 2,
+  "n_forward_solves": 4,
+  "n_adjoint_solves": 8,
+  "startup_checks": {
+    "alpha": [
+      1.0
+    ],
+    "sensor_value_rel_diff": 0.0,
+    "homogeneity_ratio": [
+      1.0000000041607073
+    ],
+    "homogeneity_status": "ok",
+    "misfit_gradient_rel_diff": 6.452594774111661e-16,
+    "sensitivity_sign": -1.0
+  },
+  "data": {
+    "file": "../damaged_system/phase1_distribution_runs/measured_data_collapsed.csv",
+    "sensors": [
+      "disp_y_tip"
+    ],
+    "d": [
+      -1.8888845093113084e-06
+    ],
+    "sigma": 9.66872114261184e-09
+  },
+  "zones": [
+    {
+      "zone": 1,
+      "name": "alpha_1",
+      "alpha_mean": 1.0027337548923547,
+      "alpha_std": 0.005132740087821221,
+      "alpha_p2.5": 0.9926737690988683,
+      "alpha_p97.5": 1.0127937406858412,
+      "E_ref_Pa": 206900000000.0,
+      "E_mean_Pa": 207465613887.22818,
+      "E_std_Pa": 1061963924.1702106
+    }
+  ],
+  "laplace": {
+    "map": [
+      1.0027337548923547
+    ],
+    "std": [
+      0.005132740087821221
+    ],
+    "covariance": [
+      [
+        2.6345020809126997e-05
+      ]
+    ],
+    "correlation": [
+      [
+        1.0
+      ]
+    ],
+    "hessian_eigenvalues": [
+      37957.83678612844
+    ],
+    "condition_number": 1.0,
+    "gradient_norm": 2.0964209549207764e-06,
+    "newton_decrement": 1.1578586116469816e-16,
+    "fraction_outside_prior": 0.0,
+    "warnings": []
+  },
+  "fit": {
+    "u_predicted": [
+      -1.8888845094153475e-06
+    ],
+    "u_data": [
+      -1.8888845093113084e-06
+    ],
+    "residual_over_sigma": [
+      -1.076038387627032e-08
+    ]
+  },
+  "validation": {
+    "alpha_mean": 0.9977207804909171,
+    "alpha_sd": 0.09631754793480071,
+    "note": "Phase 1 alpha statistics, read after the run for comparison only; never used in the inference",
+    "rel_error_mean": 0.005024426171589935
+  },
+  "settings": {
+    "mode": "u_mean",
+    "adjoint_parameters_file": "AdjointParametersBayes.json",
+    "element_name": "ShellThinElement3D3N",
+    "measured_data_file": "../damaged_system/phase1_distribution_runs/measured_data_collapsed.csv",
+    "noise_model_file": "../damaged_system/phase1_distribution_runs/noise_model_collapsed.json",
+    "u_mean": {
+      "initial_guess": [
+        1.0
+      ],
+      "sigma_key": "sigma",
+      "sigma_override": 0.0
+    },
+    "gauss_hermite": {
+      "order": 3,
+      "initial_mean": [
+        1.0
+      ],
+      "initial_std": [
+        0.05
+      ],
+      "std_prior": {
+        "parameters": [
+          0.0001,
+          0.5
+        ],
+        "type": "uniform"
+      },
+      "match": [
+        "mean",
+        "std"
+      ],
+      "sensor_noise_sigma_key": "sigma_options.sensor_noise",
+      "min_node_alpha": 0.05
+    },
+    "optimizer": {
+      "type": "gauss_newton",
+      "max_iterations": 50,
+      "decrement_tolerance": 1e-10,
+      "step_tolerance": 1e-10,
+      "objective_rel_tolerance": 1e-12,
+      "max_backtracking": 20,
+      "bb_settings": {
+        "init_step": 0.01,
+        "max_step": 0.1,
+        "gradient_scaling": "l2_norm"
+      }
+    },
+    "checks": {
+      "run_startup_checks": true,
+      "homogeneity_tolerance": 0.0001,
+      "sensor_value_tolerance": 1e-08,
+      "gradient_tolerance": 1e-06
+    },
+    "laplace": {
+      "n_samples": 100000,
+      "random_seed": 20260802
+    },
+    "validation_reference_file": "../damaged_system/phase1_distribution_runs/phase1_response_summary.json",
+    "output_path": "output_adjoint_laplace",
+    "write_excel": true,
+    "make_plots": true
+  },
+  "gradient_cross_check_max": 6.060564400957648e-16
+}
