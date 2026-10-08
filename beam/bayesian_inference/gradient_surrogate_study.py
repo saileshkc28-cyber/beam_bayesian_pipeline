@@ -6,7 +6,9 @@ Kratos) and compares, for growing equally spaced training subsets:
     b. InterpBaseline     -- the existing PCHIP, values only
     c. cubic Hermite      -- values u plus slopes du/dt = -u, per sensor in t
     d. GradientEnhancedGP -- Matern 5/2 GP on values u plus slopes du/dt = -u
-plus one "analytic" reference row: u(E) = u0 * E0 / E from a single solve.
+plus one "analytic" reference row: u(E) = u0 * E0 / E from a single solve, and,
+if gradient_training_responses.csv (adjoint_training_solves.py) is in the output
+dir, one "adjoint" row: c. and d. fitted with the Kratos adjoint slopes instead.
 
 t = ln(E / e_scale), as in ResponseSurrogate.t_of. For a linear elastic model
 u is proportional to 1/E, so du/dt = -u exactly; check 2a tests this on the data.
@@ -25,11 +27,12 @@ import numpy as np
 from scipy.interpolate import CubicHermiteSpline
 
 # BuildSurrogate.py imports Kratos only inside build_forward_model, so this is safe
-from BuildSurrogate import load_done
+from BuildSurrogate import load_done, to_float
 from gradient_gp import GradientEnhancedGP
 from response_surrogate import InterpBaseline, ResponseSurrogate, error_report
 
 SUBSET_SIZES = (2, 3, 4, 5, 7, 9, 13, 25)
+ADJOINT_CSV = "gradient_training_responses.csv"   # written by adjoint_training_solves.py
 MODELS = (("gp", "GP"), ("pchip", "PCHIP"), ("hermite", "Hermite"),
           ("gp_slope", "GP+slope"), ("analytic", "analytic"))
 
@@ -56,6 +59,31 @@ def load_responses(path):
     return np.array(keys), np.vstack([done[k] for k in keys])
 
 
+def load_adjoint(path, n_sensors):
+    """Adjoint CSV -> (E sorted ascending, u, dudt), one row per E.
+    Every row must have status 'ok'; the ratio_<i> columns are not used here."""
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+        fields = reader.fieldnames or []
+        n_u = sum(c.startswith("u_") for c in fields)
+        n_d = sum(c.startswith("dudt_") for c in fields)
+        if n_u != n_sensors or n_d != n_sensors:
+            raise RuntimeError(f"{path} has {n_u} u_* and {n_d} dudt_* column(s), the "
+                               f"training CSV has {n_sensors} sensor(s)")
+        rows = list(reader)
+    bad = [r.get("status") for r in rows if r.get("status") != "ok"]
+    if bad:
+        raise RuntimeError(f"{path}: {len(bad)} row(s) with status other than 'ok' "
+                           f"({', '.join(sorted(set(map(str, bad))))})")
+    if not rows:
+        raise RuntimeError(f"{path} holds no rows")
+    rows.sort(key=lambda r: to_float(r["E_Pa"]))
+    e = np.array([to_float(r["E_Pa"]) for r in rows])
+    u = np.array([[to_float(r[f"u_{i}"]) for i in range(n_sensors)] for r in rows])
+    dudt = np.array([[to_float(r[f"dudt_{i}"]) for i in range(n_sensors)] for r in rows])
+    return e, u, dudt
+
+
 def sensor_labels(model_file, n_sensors):
     """Sensor names from the saved surrogate's identity file if present, else u_i."""
     meta = str(model_file) + ".json"
@@ -71,16 +99,24 @@ def sensor_labels(model_file, n_sensors):
 # Models
 # --------------------------------------------------------------------------
 class HermiteInT:
-    """Cubic Hermite spline per sensor in t = ln(E / e_scale), slopes du/dt = -u."""
+    """Cubic Hermite spline per sensor in t = ln(E / e_scale), slopes du/dt = -u
+    unless dudt_train is given."""
 
     def __init__(self, e_scale_Pa):
         self.e_scale = float(e_scale_Pa)
 
-    def fit(self, e_train_Pa, u_train_m):
+    def fit(self, e_train_Pa, u_train_m, dudt_train=None):
         t = np.log(np.asarray(e_train_Pa, dtype=float) / self.e_scale)
         u = np.asarray(u_train_m, dtype=float)
-        # u = C / E = C / (e_scale * exp(t))  =>  du/dt = -u  (natural log)
-        self.splines_ = [CubicHermiteSpline(t, u[:, s], -u[:, s])
+        if dudt_train is None:
+            # u = C / E = C / (e_scale * exp(t))  =>  du/dt = -u  (natural log)
+            dudt = -u
+        else:
+            # slopes supplied by the caller, e.g. from the Kratos adjoint
+            dudt = np.asarray(dudt_train, dtype=float)
+            if dudt.shape != u.shape:
+                raise ValueError(f"dudt_train shape {dudt.shape} != u shape {u.shape}")
+        self.splines_ = [CubicHermiteSpline(t, u[:, s], dudt[:, s])
                          for s in range(u.shape[1])]
         return self
 
@@ -182,6 +218,42 @@ def main():
                      "pchip": score(pchip_fp, e_va, u_va, sigma, "PCHIP"),
                      "hermite": score(hermite_fp, e_va, u_va, sigma, "Hermite"),
                      "gp_slope": score(gp_slope_fp, e_va, u_va, sigma, "GP+slope")})
+        gpm = fitted.get("gp_slope")
+        print("  GP+slope ell_: " + (" ".join(f"{v:.3g}" for v in gpm.ell_)
+                                     if gpm is not None else "n/a (fit failed)"))
+
+    # 4b. adjoint row: Hermite and GP+slope fitted with the Kratos adjoint slopes
+    #     (adjoint_training_solves.py) instead of du/dt = -u
+    adjoint_csv = os.path.join(out["dir"], ADJOINT_CSV)
+    if not os.path.exists(adjoint_csv):
+        print(f"\nadjoint: {adjoint_csv} not found -> no adjoint row")
+    else:
+        e_a, u_a, dudt_a = load_adjoint(adjoint_csv, u_tr.shape[1])
+        # same no-extrapolation rule as check b, against the training E range
+        if e_a.min() < e_tr.min() or e_a.max() > e_tr.max():
+            raise RuntimeError(
+                f"adjoint E range [{e_a.min():.6e}, {e_a.max():.6e}] Pa is not inside "
+                f"the training E range [{e_tr.min():.6e}, {e_tr.max():.6e}] Pa")
+        print(f"\nadjoint: {adjoint_csv}: {e_a.size} points, "
+              f"E {e_a[0] / 1e9:.3f} .. {e_a[-1] / 1e9:.3f} GPa")
+        # how far the adjoint slopes are from the formula du/dt = -u
+        print("  max |dudt + u| / |u| per sensor")
+        dev = np.abs(dudt_a + u_a) / np.abs(u_a)
+        for s, name in enumerate(names):
+            print(f"  {name:<16}{dev[:, s].max():.3e}")
+
+        def hermite_adj_fp(e):
+            return HermiteInT(d["e_scale_Pa"]).fit(e_a, u_a, dudt_train=dudt_a).predict(e)
+
+        fitted = {}  # keeps the GP+slope model so its ell_ can be printed
+
+        def gp_slope_adj_fp(e):
+            fitted["gp_slope"] = GradientEnhancedGP(d["e_scale_Pa"]).fit(e_a, u_a, dudt_a)
+            return fitted["gp_slope"].predict(e)
+
+        rows.append({"row": "adjoint", "n": e_a.size,
+                     "hermite": score(hermite_adj_fp, e_va, u_va, sigma, "Hermite"),
+                     "gp_slope": score(gp_slope_adj_fp, e_va, u_va, sigma, "GP+slope")})
         gpm = fitted.get("gp_slope")
         print("  GP+slope ell_: " + (" ".join(f"{v:.3g}" for v in gpm.ell_)
                                      if gpm is not None else "n/a (fit failed)"))
